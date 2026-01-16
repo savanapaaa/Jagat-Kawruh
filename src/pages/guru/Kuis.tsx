@@ -67,24 +67,63 @@ export default function TeacherKuis() {
     try {
       const meResponse = await authAPI.me()
       if (meResponse.success && meResponse.data) {
-        const kelasIds = meResponse.data.kelas_diampu || []
+        // Handle nested user object atau direct data
+        const userData = meResponse.data.user || meResponse.data
+        const kelasData = userData.kelas_diampu || []
         
-        if (kelasIds.length > 0) {
-          const kelasResponse = await kelasAPI.getAll()
-          if (kelasResponse.success) {
-            const allKelas = kelasResponse.data?.data || kelasResponse.data || []
-            const kelasDiampu = allKelas.filter((k: any) => 
-              kelasIds.includes(k.id) || kelasIds.includes(String(k.id)) || kelasIds.includes(Number(k.id))
-            )
-            setKelasList(kelasDiampu)
-            if (kelasDiampu.length > 0 && !kelas) {
-              setKelas(kelasDiampu[0].id)
+        if (Array.isArray(kelasData) && kelasData.length > 0) {
+          // Jika berisi object dengan property nama/id (format baru dari backend)
+          if (typeof kelasData[0] === 'object' && kelasData[0].nama) {
+            setKelasList(kelasData)
+            if (!kelas) setKelas(kelasData[0].id)
+            return
+          }
+          
+          // Jika berisi ID saja, coba load detail kelas
+          try {
+            const kelasResponse = await kelasAPI.getAll()
+            if (kelasResponse.success) {
+              const allKelas = kelasResponse.data?.data || kelasResponse.data || []
+              const kelasDiampu = allKelas.filter((k: any) => 
+                kelasData.includes(k.id) || kelasData.includes(String(k.id)) || kelasData.includes(Number(k.id))
+              )
+              if (kelasDiampu.length > 0) {
+                setKelasList(kelasDiampu)
+                if (!kelas) setKelas(kelasDiampu[0].id)
+                return
+              }
             }
+          } catch (err) {
+            // 403 - use ID as fallback
+            const kelasFromIds = kelasData.map((id: any) => ({
+              id: id,
+              nama: `Kelas ${id}`,
+              tingkat: String(id)
+            }))
+            setKelasList(kelasFromIds)
+            if (!kelas) setKelas(kelasData[0])
+            return
           }
         }
       }
+      
+      // Fallback: kelas manual
+      const manualKelas = [
+        { id: 'X', nama: 'Kelas X', tingkat: 'X' },
+        { id: 'XI', nama: 'Kelas XI', tingkat: 'XI' },
+        { id: 'XII', nama: 'Kelas XII', tingkat: 'XII' }
+      ]
+      setKelasList(manualKelas as any)
+      if (!kelas) setKelas('X')
     } catch (error) {
       console.error('Error loading kelas diampu:', error)
+      const manualKelas = [
+        { id: 'X', nama: 'Kelas X', tingkat: 'X' },
+        { id: 'XI', nama: 'Kelas XI', tingkat: 'XI' },
+        { id: 'XII', nama: 'Kelas XII', tingkat: 'XII' }
+      ]
+      setKelasList(manualKelas as any)
+      if (!kelas) setKelas('X')
     }
   }
 

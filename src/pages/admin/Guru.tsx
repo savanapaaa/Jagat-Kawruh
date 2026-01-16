@@ -147,29 +147,41 @@ export default function AdminGuru() {
     
     try {
       if (editingGuru) {
-        // Update
+        // Update - Convert kelas_diampu to integers
         const updateData: {
           nip: string
-          nama: string
+          name: string
           email: string
-          jurusan_id: string
-          kelas_diampu: string[]
+          jurusan_id: number
+          kelas_diampu: number[]
           password?: string
         } = {
           nip: formData.nip,
-          nama: formData.nama,
+          name: formData.nama,
           email: formData.email,
-          jurusan_id: formData.jurusan_id,
-          kelas_diampu: formData.kelas_diampu
+          jurusan_id: Number(formData.jurusan_id),
+          kelas_diampu: formData.kelas_diampu.map(id => Number(id))
         }
         if (formData.password) {
           updateData.password = formData.password
         }
-        await guruAPI.update(editingGuru.id, updateData)
+        console.log('Sending update data:', updateData)
+        const response = await guruAPI.update(editingGuru.id, updateData)
+        console.log('Update response:', response)
         alert('Guru berhasil diperbarui!')
       } else {
-        // Create
-        await guruAPI.create({ ...formData })
+        // Create - Convert kelas_diampu to integers
+        const createData = {
+          nip: formData.nip,
+          name: formData.nama,
+          email: formData.email,
+          password: formData.password,
+          jurusan_id: Number(formData.jurusan_id),
+          kelas_diampu: formData.kelas_diampu.map(id => Number(id))
+        }
+        console.log('Sending create data:', createData)
+        const response = await guruAPI.create(createData)
+        console.log('Create response:', response)
         alert('Guru berhasil ditambahkan!')
       }
       

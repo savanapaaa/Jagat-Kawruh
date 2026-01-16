@@ -45,29 +45,78 @@ export default function TeacherMateri() {
 
   async function loadKelasDiampu() {
     try {
-      // Ambil data guru yang login
+      // Coba ambil data guru untuk mendapatkan kelas_diampu
       const meResponse = await authAPI.me()
+      console.log('Response dari authAPI.me():', meResponse)
+      
       if (meResponse.success && meResponse.data) {
-        const kelasIds = meResponse.data.kelas_diampu || []
+        // Handle nested user object atau direct data
+        const userData = meResponse.data.user || meResponse.data
+        const kelasData = userData.kelas_diampu || []
+        console.log('kelas_diampu dari backend:', kelasData)
         
-        if (kelasIds.length > 0) {
-          // Ambil semua kelas
-          const kelasResponse = await kelasAPI.getAll()
-          if (kelasResponse.success) {
-            const allKelas = kelasResponse.data?.data || kelasResponse.data || []
-            // Filter hanya kelas yang diampu
-            const kelasDiampu = allKelas.filter((k: any) => 
-              kelasIds.includes(k.id) || kelasIds.includes(String(k.id)) || kelasIds.includes(Number(k.id))
-            )
-            setKelasList(kelasDiampu)
-            if (kelasDiampu.length > 0 && !kelas) {
-              setKelas(kelasDiampu[0].id)
+        // Check apakah kelas_diampu berisi object atau hanya ID
+        if (Array.isArray(kelasData) && kelasData.length > 0) {
+          // Jika berisi object dengan property nama/id (format baru dari backend)
+          if (typeof kelasData[0] === 'object' && kelasData[0].nama) {
+            console.log('Using kelas from backend with full details')
+            setKelasList(kelasData)
+            if (!kelas) setKelas(kelasData[0].id)
+            return
+          }
+          
+          // Jika berisi ID saja, coba load detail kelas dari backend
+          if (typeof kelasData[0] === 'number' || typeof kelasData[0] === 'string') {
+            try {
+              const kelasResponse = await kelasAPI.getAll()
+              if (kelasResponse.success) {
+                const allKelas = kelasResponse.data?.data || kelasResponse.data || []
+                const kelasDiampu = allKelas.filter((k: any) => 
+                  kelasData.includes(k.id) || kelasData.includes(String(k.id)) || kelasData.includes(Number(k.id))
+                )
+                if (kelasDiampu.length > 0) {
+                  console.log('Filtered kelas from full list:', kelasDiampu)
+                  setKelasList(kelasDiampu)
+                  if (!kelas) setKelas(kelasDiampu[0].id)
+                  return
+                }
+              }
+            } catch (err) {
+              console.log('Cannot load kelas details (403), will use ID as name')
+              // Fallback: buat object kelas dari ID saja
+              const kelasFromIds = kelasData.map((id: any) => ({
+                id: id,
+                nama: `Kelas ${id}`,
+                tingkat: String(id)
+              }))
+              setKelasList(kelasFromIds)
+              if (!kelas) setKelas(kelasData[0])
+              return
             }
           }
         }
       }
-    } catch (error) {
+      
+      // Final fallback: kelas manual X, XI, XII
+      console.log('Using manual fallback kelas (no kelas_diampu found)')
+      const manualKelas = [
+        { id: 'X', nama: 'Kelas X', tingkat: 'X' },
+        { id: 'XI', nama: 'Kelas XI', tingkat: 'XI' },
+        { id: 'XII', nama: 'Kelas XII', tingkat: 'XII' }
+      ]
+      setKelasList(manualKelas as any)
+      if (!kelas) setKelas('X')
+      
+    } catch (error: any) {
       console.error('Error loading kelas diampu:', error)
+      // Fallback final
+      const manualKelas = [
+        { id: 'X', nama: 'Kelas X', tingkat: 'X' },
+        { id: 'XI', nama: 'Kelas XI', tingkat: 'XI' },
+        { id: 'XII', nama: 'Kelas XII', tingkat: 'XII' }
+      ]
+      setKelasList(manualKelas as any)
+      if (!kelas) setKelas('X')
     }
   }
 

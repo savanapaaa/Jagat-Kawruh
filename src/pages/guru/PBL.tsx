@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { pblAPI, jurusanAPI, authAPI, kelasAPI } from '../../lib/api'
+import { pblAPI, jurusanAPI, authAPI, kelasAPI, siswaAPI } from '../../lib/api'
 
 type StatusPBL = 'Aktif' | 'Draft' | 'Selesai'
 
@@ -25,15 +25,18 @@ type Jurusan = {
 type Sintaks = {
   id: string
   urutan: number
-  nama_fase: string
-  deskripsi: string
+  nama_fase?: string
+  judul?: string
+  deskripsi?: string
   instruksi: string
 }
 
 type Kelompok = {
   id: string
   nama_kelompok: string
-  anggota_kelompok: string
+  anggota_kelompok?: string | number[]  // Support both text and array
+  anggota?: string[] | number[]  // Backend returns array of siswa IDs
+  siswa?: Array<{ id: number; nama: string; nis?: string }>  // Populated by backend
 }
 
 type Kelas = {
@@ -57,6 +60,8 @@ export default function PBL() {
   const [kelompokList, setKelompokList] = useState<Kelompok[]>([])
   const [showKelompokForm, setShowKelompokForm] = useState(false)
   const [editingKelompok, setEditingKelompok] = useState<Kelompok | null>(null)
+  const [siswaList, setSiswaList] = useState<Array<{ id: number | string; nama: string; nis?: string; kelas?: string }>>([])
+  const [expandedKelompok, setExpandedKelompok] = useState<string[]>([])
 
   const [formData, setFormData] = useState({
     judul: '',
@@ -77,9 +82,12 @@ export default function PBL() {
     instruksi: ''
   })
 
-  const [kelompokFormData, setKelompokFormData] = useState({
+  const [kelompokFormData, setKelompokFormData] = useState<{
+    nama_kelompok: string
+    anggota_ids: number[]
+  }>({
     nama_kelompok: '',
-    anggota_kelompok: ''
+    anggota_ids: []
   })
 
   useEffect(() => {
@@ -93,24 +101,63 @@ export default function PBL() {
     try {
       const meResponse = await authAPI.me()
       if (meResponse.success && meResponse.data) {
-        const kelasIds = meResponse.data.kelas_diampu || []
+        // Handle nested user object atau direct data
+        const userData = meResponse.data.user || meResponse.data
+        const kelasData = userData.kelas_diampu || []
         
-        if (kelasIds.length > 0) {
-          const kelasResponse = await kelasAPI.getAll()
-          if (kelasResponse.success) {
-            const allKelas = kelasResponse.data?.data || kelasResponse.data || []
-            const kelasDiampu = allKelas.filter((k: any) => 
-              kelasIds.includes(k.id) || kelasIds.includes(String(k.id)) || kelasIds.includes(Number(k.id))
-            )
-            setKelasList(kelasDiampu)
-            if (kelasDiampu.length > 0 && !formData.kelas) {
-              setFormData(prev => ({ ...prev, kelas: kelasDiampu[0].id }))
+        if (Array.isArray(kelasData) && kelasData.length > 0) {
+          // Jika berisi object dengan property nama/id (format baru dari backend)
+          if (typeof kelasData[0] === 'object' && kelasData[0].nama) {
+            setKelasList(kelasData)
+            if (!formData.kelas) setFormData(prev => ({ ...prev, kelas: kelasData[0].id }))
+            return
+          }
+          
+          // Jika berisi ID saja, coba load detail kelas
+          try {
+            const kelasResponse = await kelasAPI.getAll()
+            if (kelasResponse.success) {
+              const allKelas = kelasResponse.data?.data || kelasResponse.data || []
+              const kelasDiampu = allKelas.filter((k: any) => 
+                kelasData.includes(k.id) || kelasData.includes(String(k.id)) || kelasData.includes(Number(k.id))
+              )
+              if (kelasDiampu.length > 0) {
+                setKelasList(kelasDiampu)
+                if (!formData.kelas) setFormData(prev => ({ ...prev, kelas: kelasDiampu[0].id }))
+                return
+              }
             }
+          } catch (err) {
+            // 403 - use ID as fallback
+            const kelasFromIds = kelasData.map((id: any) => ({
+              id: id,
+              nama: `Kelas ${id}`,
+              tingkat: String(id)
+            }))
+            setKelasList(kelasFromIds)
+            if (!formData.kelas) setFormData(prev => ({ ...prev, kelas: kelasData[0] }))
+            return
           }
         }
       }
+      
+      // Fallback: kelas manual
+      const manualKelas = [
+        { id: 'X', nama: 'Kelas X', tingkat: 'X' },
+        { id: 'XI', nama: 'Kelas XI', tingkat: 'XI' },
+        { id: 'XII', nama: 'Kelas XII', tingkat: 'XII' }
+      ]
+      setKelasList(manualKelas as any)
+      if (!formData.kelas) setFormData(prev => ({ ...prev, kelas: 'X' }))
     } catch (error) {
       console.error('Error loading kelas diampu:', error)
+      const manualKelas = [
+        { id: 'X', nama: 'Kelas X', tingkat: 'X' },
+        { id: 'XI', nama: 'Kelas XI', tingkat: 'XI' },
+        { id: 'XII', nama: 'Kelas XII', tingkat: 'XII' }
+      ]
+      setKelasList(manualKelas as any)
+      if (!formData.kelas) setFormData(prev => ({ ...prev, kelas: 'X' }))
     }
   }
 
@@ -238,15 +285,29 @@ export default function PBL() {
     if (!selectedProject) return
 
     try {
+      // Backend expect: judul, instruksi, urutan
+      const dataToSend = {
+        urutan: sintaksFormData.urutan,
+        judul: sintaksFormData.nama_fase,  // Send as 'judul' to backend
+        instruksi: sintaksFormData.instruksi
+      }
+      
       if (editingSintaks) {
-        await pblAPI.updateSintaks(selectedProject.id, editingSintaks.id, sintaksFormData)
+        const response = await pblAPI.updateSintaks(selectedProject.id, editingSintaks.id, dataToSend)
+        console.log('Update sintaks response:', response)
         alert('Sintaks berhasil diubah!')
       } else {
-        await pblAPI.createSintaks(selectedProject.id, sintaksFormData)
+        const response = await pblAPI.createSintaks(selectedProject.id, dataToSend)
+        console.log('Create sintaks response:', response)
         alert('Sintaks berhasil ditambahkan!')
       }
       resetSintaksForm()
-      await viewSintaks(selectedProject)
+      // Refresh sintaks list dari backend
+      const refreshResponse = await pblAPI.getSintaks(selectedProject.id)
+      console.log('Refreshed sintaks list:', refreshResponse)
+      if (refreshResponse.success && Array.isArray(refreshResponse.data)) {
+        setSintaksList(refreshResponse.data)
+      }
     } catch (error) {
       console.error('Error saving sintaks:', error)
       alert('Gagal menyimpan sintaks.')
@@ -255,7 +316,7 @@ export default function PBL() {
 
   function resetSintaksForm() {
     setSintaksFormData({
-      urutan: sintaksList.length + 1,
+      urutan: (sintaksList.length || 0) + 1,
       nama_fase: '',
       deskripsi: '',
       instruksi: ''
@@ -268,8 +329,8 @@ export default function PBL() {
     setEditingSintaks(sintaks)
     setSintaksFormData({
       urutan: sintaks.urutan,
-      nama_fase: sintaks.nama_fase,
-      deskripsi: sintaks.deskripsi,
+      nama_fase: sintaks.nama_fase || sintaks.judul || '',
+      deskripsi: sintaks.deskripsi || '',
       instruksi: sintaks.instruksi
     })
     setShowSintaksForm(true)
@@ -292,9 +353,24 @@ export default function PBL() {
   async function viewKelompok(project: ProjectPBL) {
     setSelectedProject(project)
     setViewMode('kelompok')
+    
+    // Load siswa untuk form
+    try {
+      const siswaResponse = await siswaAPI.getAll({ kelas: project.kelas })
+      if (siswaResponse.success && Array.isArray(siswaResponse.data)) {
+        setSiswaList(siswaResponse.data)
+      }
+    } catch (error) {
+      console.error('Error loading siswa:', error)
+    }
+    
+    // Load kelompok
     try {
       const response = await pblAPI.getKelompok(project.id)
+      console.log('Kelompok response:', response)
+      console.log('Kelompok data:', response.data)
       if (response.success && Array.isArray(response.data)) {
+        console.log('Setting kelompok list:', response.data)
         setKelompokList(response.data)
       }
     } catch (error) {
@@ -308,25 +384,41 @@ export default function PBL() {
     if (!selectedProject) return
 
     try {
+      // Convert IDs to siswa names for backend (temporary workaround)
+      const selectedSiswa = siswaList.filter(s => kelompokFormData.anggota_ids.includes(s.id))
+      const anggotaNamaList = selectedSiswa.map(s => s.nama).join('\n')
+      
+      const dataToSend: any = {
+        nama_kelompok: kelompokFormData.nama_kelompok,
+        anggota_kelompok: anggotaNamaList,  // Send as text for now
+        anggota_ids: kelompokFormData.anggota_ids  // Also send IDs if backend supports
+      }
+      
+      console.log('Sending kelompok data:', dataToSend)
+      console.log('Selected siswa:', selectedSiswa)
+      
       if (editingKelompok) {
-        await pblAPI.updateKelompok(selectedProject.id, editingKelompok.id, kelompokFormData)
+        const response = await pblAPI.updateKelompok(selectedProject.id, editingKelompok.id, dataToSend)
+        console.log('Update kelompok response:', response)
         alert('Kelompok berhasil diubah!')
       } else {
-        await pblAPI.createKelompok(selectedProject.id, kelompokFormData)
+        const response = await pblAPI.createKelompok(selectedProject.id, dataToSend)
+        console.log('Create kelompok response:', response)
         alert('Kelompok berhasil ditambahkan!')
       }
       resetKelompokForm()
       await viewKelompok(selectedProject)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving kelompok:', error)
-      alert('Gagal menyimpan kelompok.')
+      console.error('Error detail:', error.message)
+      alert('Gagal menyimpan kelompok: ' + (error.message || 'Unknown error'))
     }
   }
 
   function resetKelompokForm() {
     setKelompokFormData({
       nama_kelompok: '',
-      anggota_kelompok: ''
+      anggota_ids: []
     })
     setShowKelompokForm(false)
     setEditingKelompok(null)
@@ -334,9 +426,18 @@ export default function PBL() {
 
   function handleEditKelompok(kelompok: Kelompok) {
     setEditingKelompok(kelompok)
+    
+    // Parse anggota_kelompok jadi array of IDs
+    let anggotaIds: number[] = []
+    if (Array.isArray(kelompok.anggota_kelompok)) {
+      anggotaIds = kelompok.anggota_kelompok as number[]
+    } else if (kelompok.siswa && Array.isArray(kelompok.siswa)) {
+      anggotaIds = kelompok.siswa.map(s => s.id)
+    }
+    
     setKelompokFormData({
       nama_kelompok: kelompok.nama_kelompok,
-      anggota_kelompok: kelompok.anggota_kelompok
+      anggota_ids: anggotaIds
     })
     setShowKelompokForm(true)
   }
@@ -415,7 +516,7 @@ export default function PBL() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Nama Fase *</label>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Judul Fase *</label>
                   <input
                     type="text"
                     value={sintaksFormData.nama_fase}
@@ -426,24 +527,13 @@ export default function PBL() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Deskripsi *</label>
-                  <textarea
-                    value={sintaksFormData.deskripsi}
-                    onChange={(e) => setSintaksFormData({ ...sintaksFormData, deskripsi: e.target.value })}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-amber-500"
-                    rows={3}
-                    placeholder="Jelaskan tujuan fase ini..."
-                    required
-                  />
-                </div>
-                <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">Instruksi *</label>
                   <textarea
                     value={sintaksFormData.instruksi}
                     onChange={(e) => setSintaksFormData({ ...sintaksFormData, instruksi: e.target.value })}
                     className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-amber-500"
-                    rows={4}
-                    placeholder="Langkah-langkah yang harus dilakukan siswa..."
+                    rows={6}
+                    placeholder="Jelaskan langkah-langkah yang harus dilakukan siswa pada fase ini...&#10;&#10;Contoh:&#10;1. Identifikasi masalah&#10;2. Buat hipotesis&#10;3. Diskusikan dengan kelompok"
                     required
                   />
                 </div>
@@ -491,11 +581,7 @@ export default function PBL() {
                           >
                             {sintaks.urutan}
                           </span>
-                          <h3 className="text-xl font-bold text-slate-800">{sintaks.nama_fase}</h3>
-                        </div>
-                        <div className="mb-3">
-                          <p className="text-xs font-semibold text-slate-700 mb-1">Deskripsi:</p>
-                          <p className="text-sm text-slate-600 whitespace-pre-wrap">{sintaks.deskripsi}</p>
+                          <h3 className="text-xl font-bold text-slate-800">{sintaks.nama_fase || sintaks.judul}</h3>
                         </div>
                         <div>
                           <p className="text-xs font-semibold text-slate-700 mb-1">Instruksi:</p>
@@ -552,7 +638,7 @@ export default function PBL() {
           <div className="mb-6 flex justify-end">
             <button
               onClick={() => {
-                setKelompokFormData({ nama_kelompok: '', anggota_kelompok: '' })
+                setKelompokFormData({ nama_kelompok: '', anggota_ids: [] })
                 setShowKelompokForm(!showKelompokForm)
               }}
               className="rounded-xl bg-amber-500 px-5 py-2.5 font-bold text-white shadow-md hover:bg-amber-600"
@@ -579,20 +665,51 @@ export default function PBL() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Anggota Kelompok *</label>
-                  <textarea
-                    value={kelompokFormData.anggota_kelompok}
-                    onChange={(e) => setKelompokFormData({ ...kelompokFormData, anggota_kelompok: e.target.value })}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-amber-500"
-                    rows={4}
-                    placeholder="Masukkan nama siswa (satu per baris)&#10;Budi Santoso&#10;Ani Wijaya&#10;Citra Dewi"
-                    required
-                  />
-                  <p className="mt-1 text-xs text-slate-500">Tulis nama siswa, satu nama per baris</p>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Pilih Anggota Kelompok *</label>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 max-h-80 overflow-y-auto">
+                    {siswaList.length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-4">
+                        Tidak ada siswa di kelas ini
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {siswaList.map((siswa) => (
+                          <label key={siswa.id} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded-lg">
+                            <input
+                              type="checkbox"
+                              checked={kelompokFormData.anggota_ids.includes(siswa.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setKelompokFormData({
+                                    ...kelompokFormData,
+                                    anggota_ids: [...kelompokFormData.anggota_ids, siswa.id]
+                                  })
+                                } else {
+                                  setKelompokFormData({
+                                    ...kelompokFormData,
+                                    anggota_ids: kelompokFormData.anggota_ids.filter(id => id !== siswa.id)
+                                  })
+                                }
+                              }}
+                              className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"
+                            />
+                            <div className="flex-1">
+                              <span className="text-sm font-semibold text-slate-700">{siswa.nama}</span>
+                              {siswa.nis && <span className="ml-2 text-xs text-slate-500">NIS: {siswa.nis}</span>}
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Dipilih: {kelompokFormData.anggota_ids.length} siswa
+                  </p>
                 </div>
                 <button
                   type="submit"
-                  className="w-full rounded-lg bg-amber-500 py-3 font-bold text-white hover:bg-amber-600"
+                  disabled={kelompokFormData.anggota_ids.length === 0}
+                  className="w-full rounded-lg bg-amber-500 py-3 font-bold text-white hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {editingKelompok ? 'Simpan Perubahan' : 'Tambah Kelompok'}
                 </button>
@@ -607,43 +724,123 @@ export default function PBL() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {kelompokList.map((kelompok) => (
-                <div
-                  key={kelompok.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md"
-                >
-                  <div className="mb-4 flex items-start justify-between">
-                    <h3 className="text-xl font-bold text-slate-800">{kelompok.nama_kelompok}</h3>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEditKelompok(kelompok)}
-                        className="rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-600"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteKelompok(kelompok.id)}
-                        className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600"
-                      >
-                        Hapus
-                      </button>
+              {kelompokList.map((kelompok) => {
+                console.log('Rendering kelompok:', kelompok)
+                console.log('kelompok.anggota:', kelompok.anggota)
+                console.log('kelompok.siswa:', kelompok.siswa)
+                console.log('kelompok.anggota_kelompok:', kelompok.anggota_kelompok)
+                console.log('Available siswaList:', siswaList)
+                
+                const isExpanded = expandedKelompok.includes(kelompok.id)
+                
+                // Handle different response formats from backend
+                let anggotaList: Array<{ nama: string; nis?: string }> = []
+                
+                if (kelompok.anggota && Array.isArray(kelompok.anggota)) {
+                  // Backend returns array of siswa IDs like ["siswa-10", "siswa-8"]
+                  console.log('Using anggota array (IDs)')
+                  console.log('siswaList IDs available:', siswaList.map(s => s.id))
+                  anggotaList = kelompok.anggota
+                    .map(id => {
+                      // ID could be string "siswa-10" or number 10
+                      const idString = typeof id === 'string' ? id : `siswa-${id}`
+                      const numericId = typeof id === 'string' && id.startsWith('siswa-') 
+                        ? parseInt(id.replace('siswa-', ''))
+                        : typeof id === 'number' ? id : null
+                      
+                      // Try to find by string ID first
+                      let siswa = siswaList.find(s => String(s.id) === idString || s.id === id)
+                      
+                      // If not found and we have numeric ID, try that
+                      if (!siswa && numericId) {
+                        siswa = siswaList.find(s => s.id === numericId)
+                      }
+                      
+                      console.log(`Looking for siswa ID ${id}:`, siswa)
+                      
+                      if (siswa) {
+                        return siswa
+                      } else {
+                        // If not found in siswaList, create placeholder from ID
+                        return { id: numericId || id, nama: `Siswa ${numericId || id}` }
+                      }
+                    })
+                    .filter((s): s is { id: number | string; nama: string; nis?: string } => s !== null)
+                } else if (kelompok.siswa && Array.isArray(kelompok.siswa)) {
+                  // Backend populated with siswa objects
+                  console.log('Using siswa array')
+                  anggotaList = kelompok.siswa
+                } else if (typeof kelompok.anggota_kelompok === 'string' && kelompok.anggota_kelompok.trim()) {
+                  // Legacy: text format
+                  console.log('Using text format, splitting:', kelompok.anggota_kelompok)
+                  anggotaList = kelompok.anggota_kelompok.split('\n').filter(n => n.trim()).map(nama => ({ nama: nama.trim() }))
+                }
+                
+                console.log('Final anggotaList:', anggotaList)
+                
+                return (
+                  <div
+                    key={kelompok.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md"
+                  >
+                    <div className="mb-4 flex items-start justify-between">
+                      <div>
+                        <h3 className="text-xl font-bold text-slate-800">{kelompok.nama_kelompok}</h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {anggotaList.length} anggota
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            if (isExpanded) {
+                              setExpandedKelompok(expandedKelompok.filter(id => id !== kelompok.id))
+                            } else {
+                              setExpandedKelompok([...expandedKelompok, kelompok.id])
+                            }
+                          }}
+                          className="rounded-lg bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-600"
+                        >
+                          {isExpanded ? 'Tutup' : 'Detail'}
+                        </button>
+                        <button
+                          onClick={() => handleEditKelompok(kelompok)}
+                          className="rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-600"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteKelompok(kelompok.id)}
+                          className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600"
+                        >
+                          Hapus
+                        </button>
+                      </div>
                     </div>
+                    
+                    {isExpanded && (
+                      <div className="rounded-lg bg-slate-50 p-4 border-t border-slate-200">
+                        <p className="mb-3 text-xs font-semibold text-slate-700">Daftar Anggota:</p>
+                        {anggotaList.length > 0 ? (
+                          <div className="space-y-1">
+                            {anggotaList.map((anggota, idx) => (
+                              <div key={idx} className="flex items-center gap-2 text-sm text-slate-600">
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-white">
+                                  {idx + 1}
+                                </span>
+                                <span>{anggota.nama}</span>
+                                {anggota.nis && <span className="ml-auto text-xs text-slate-400">NIS: {anggota.nis}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-400">Belum ada anggota</p>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="rounded-lg bg-slate-50 p-4">
-                    <p className="mb-2 text-xs font-semibold text-slate-700">Anggota:</p>
-                    <div className="space-y-1">
-                      {kelompok.anggota_kelompok.split('\n').map((nama, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-sm text-slate-600">
-                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-white">
-                            {idx + 1}
-                          </span>
-                          {nama.trim()}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

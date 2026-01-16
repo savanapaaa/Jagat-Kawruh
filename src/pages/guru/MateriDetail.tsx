@@ -1,59 +1,91 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getFile } from '../../lib/idbFiles'
+import { materiAPI } from '../../lib/api'
 
 type MateriStatus = 'Dipublikasikan' | 'Draft'
 
 type MateriItem = {
   id: string
-  title: string
-  kelas: string
+  judul: string
+  kelas: string | string[]
   status: MateriStatus
-  fileId?: string
-  fileName?: string
-  fileSize?: number
-}
-
-const STORAGE_KEY = 'jk_teacher_materi'
-
-function loadMateri(): MateriItem[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    return JSON.parse(raw) as MateriItem[]
-  } catch {
-    return []
-  }
-}
-
-function saveMateri(items: MateriItem[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
+  file_path?: string
+  file_name?: string
+  file_size?: number
 }
 
 export default function MateriDetail() {
   const navigate = useNavigate()
   const { materiId } = useParams()
   const [materi, setMateri] = useState<MateriItem | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const all = loadMateri()
-    const found = all.find((m) => m.id === materiId)
-    if (found) {
-      setMateri(found)
-    } else {
-      navigate('/guru/materi')
-    }
-  }, [materiId, navigate])
+    loadMateri()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [materiId])
 
-  function handleStatusChange(newStatus: MateriStatus) {
+  async function loadMateri() {
+    if (!materiId) {
+      navigate('/guru/materi')
+      return
+    }
+
+    try {
+      const response = await materiAPI.getById(materiId)
+      if (response.success && response.data) {
+        setMateri(response.data)
+      } else {
+        alert('Materi tidak ditemukan')
+        navigate('/guru/materi')
+      }
+    } catch (error) {
+      console.error('Error loading materi:', error)
+      alert('Gagal memuat detail materi')
+      navigate('/guru/materi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleStatusChange(newStatus: MateriStatus) {
     if (!materi) return
-    const all = loadMateri()
-    const updated = all.map((m) => (m.id === materi.id ? { ...m, status: newStatus } : m))
-    saveMateri(updated)
-    setMateri({ ...materi, status: newStatus })
+    
+    try {
+      const response = await materiAPI.update(materi.id, { status: newStatus })
+      if (response.success) {
+        setMateri({ ...materi, status: newStatus })
+        alert('Status materi berhasil diubah!')
+      }
+    } catch (error) {
+      console.error('Error updating status:', error)
+      alert('Gagal mengubah status materi')
+    }
+  }
+
+  async function handleDownload() {
+    if (!materi) return
+    
+    try {
+      await materiAPI.download(materi.id)
+    } catch (error) {
+      console.error('Error downloading file:', error)
+      alert('Gagal mengunduh file')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200">
+        <p className="text-center text-slate-500">Memuat detail materi...</p>
+      </div>
+    )
   }
 
   if (!materi) return null
+
+  // Handle kelas bisa array atau string
+  const kelasDisplay = Array.isArray(materi.kelas) ? materi.kelas.join(', ') : materi.kelas
 
   return (
     <div className="rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200">
@@ -69,7 +101,7 @@ export default function MateriDetail() {
         </button>
         <div className="flex-1">
           <div className="text-xs font-semibold tracking-wide text-slate-500">DETAIL MATERI</div>
-          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-800">{materi.title}</h1>
+          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-800">{materi.judul}</h1>
         </div>
         <div
           className={
@@ -87,7 +119,7 @@ export default function MateriDetail() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="text-xs font-semibold text-slate-500">Kelas</div>
-          <div className="mt-1 text-2xl font-extrabold text-slate-800">{materi.kelas}</div>
+          <div className="mt-1 text-2xl font-extrabold text-slate-800">{kelasDisplay}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="text-xs font-semibold text-slate-500">Status</div>
@@ -103,8 +135,8 @@ export default function MateriDetail() {
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="text-xs font-semibold text-slate-500">File Materi</div>
           <div className="mt-2 text-sm font-semibold text-slate-800">
-            {materi.fileName ? (
-              <span className="text-emerald-600">✓ {materi.fileName}</span>
+            {materi.file_name ? (
+              <span className="text-emerald-600">✓ {materi.file_name}</span>
             ) : (
               <span className="text-slate-400">Tidak ada file</span>
             )}
@@ -113,7 +145,7 @@ export default function MateriDetail() {
       </div>
 
       {/* File Download/View */}
-      {materi.fileId && materi.fileName && (
+      {materi.file_name && (
         <div className="mt-6">
           <div className="mb-3 text-lg font-extrabold text-slate-800">File Materi</div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -127,23 +159,13 @@ export default function MateriDetail() {
                 />
               </svg>
               <div className="flex-1">
-                <div className="text-sm font-semibold text-slate-800">{materi.fileName}</div>
+                <div className="text-sm font-semibold text-slate-800">{materi.file_name}</div>
                 <div className="text-xs text-slate-500">
-                  {materi.fileSize ? `${Math.ceil(materi.fileSize / 1024)} KB` : 'File tersimpan'}
+                  {materi.file_size ? `${Math.ceil(materi.file_size / 1024)} KB` : 'File tersimpan'}
                 </div>
               </div>
               <button
-                onClick={async () => {
-                  if (!materi.fileId) return
-                  const record = await getFile(materi.fileId)
-                  if (!record) {
-                    alert('File tidak ditemukan')
-                    return
-                  }
-                  const url = URL.createObjectURL(record.blob)
-                  window.open(url, '_blank', 'noopener,noreferrer')
-                  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
-                }}
+                onClick={handleDownload}
                 className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
               >
                 Lihat PDF

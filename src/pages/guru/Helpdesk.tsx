@@ -138,13 +138,13 @@ export default function GuruHelpdesk() {
     })
   }
 
-  const ticketsFiltered = tickets.filter((t) => {
+  const ticketsFiltered = (tickets || []).filter((t) => {
     if (filter === 'Semua') return true
     return t.status === filter
   })
 
-  const openCount = tickets.filter((t) => t.status === 'Open').length
-  const inProgressCount = tickets.filter((t) => t.status === 'In Progress').length
+  const openCount = (tickets || []).filter((t) => t.status === 'Open').length
+  const inProgressCount = (tickets || []).filter((t) => t.status === 'In Progress').length
 
   // Detail Ticket View
   if (viewingTicket) {
@@ -202,37 +202,25 @@ export default function GuruHelpdesk() {
         {/* Balasan */}
         <div className="rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200">
           <h2 className="text-lg font-extrabold text-slate-800">
-            Percakapan ({viewingTicket.balasan?.length || 0})
+            Balasan Guru
           </h2>
 
           <div className="mt-6 space-y-4">
-            {!viewingTicket.balasan || viewingTicket.balasan.length === 0 ? (
+            {!viewingTicket.balasan || (typeof viewingTicket.balasan === 'string' && !viewingTicket.balasan.trim()) ? (
               <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm text-slate-600">
-                Belum ada balasan
+                Belum ada balasan dari guru
               </div>
             ) : (
-              viewingTicket.balasan.map((balasan: any) => (
-                <div
-                  key={balasan.id}
-                  className={`rounded-2xl p-5 ${
-                    balasan.dari === viewingTicket.pengirim ? 'bg-blue-50 ml-8' : 'bg-amber-50 mr-8'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-bold text-slate-800">
-                      {balasan.namaUser}
-                      {balasan.dari === viewingTicket.pengirim && (
-                        <span className="ml-2 text-xs font-normal text-slate-500">(Siswa)</span>
-                      )}
-                      {balasan.dari !== viewingTicket.pengirim && (
-                        <span className="ml-2 text-xs font-normal text-slate-500">(Guru)</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-slate-500">{formatWaktu(balasan.tanggal)}</div>
+              <div className="rounded-2xl p-5 bg-amber-50">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-bold text-slate-800">
+                    Guru
+                    <span className="ml-2 text-xs font-normal text-slate-500">(Admin/Guru)</span>
                   </div>
-                  <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">{balasan.pesan}</p>
+                  <div className="text-xs text-slate-500">{formatWaktu(viewingTicket.updated_at)}</div>
                 </div>
-              ))
+                <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">{viewingTicket.balasan}</p>
+              </div>
             )}
           </div>
 
@@ -332,7 +320,24 @@ export default function GuruHelpdesk() {
           ticketsFiltered.map((ticket) => (
             <div
               key={ticket.id}
-              onClick={() => setViewingTicket(ticket)}
+              onClick={async () => {
+                try {
+                  // Get full ticket detail with balasan from backend
+                  const response = await helpdeskAPI.getById(ticket.id)
+                  console.log('Ticket detail response:', response)
+                  
+                  if (response.success && response.data) {
+                    setViewingTicket(response.data)
+                  } else {
+                    // Fallback to list data
+                    setViewingTicket(ticket)
+                  }
+                } catch (error) {
+                  console.error('Error loading ticket detail:', error)
+                  // Fallback to list data
+                  setViewingTicket(ticket)
+                }
+              }}
               className="cursor-pointer rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 transition hover:shadow-md hover:ring-amber-300"
             >
               <div className="flex items-start justify-between">
@@ -348,10 +353,14 @@ export default function GuruHelpdesk() {
                       <span className="text-xs text-slate-500">ID: {ticket.id}</span>
                       <span className="text-xs text-slate-500">•</span>
                       <span className="text-xs text-slate-500">{formatWaktu(ticket.createdAt)}</span>
-                      <span className="text-xs text-slate-500">•</span>
-                      <span className="text-xs text-slate-600 font-semibold">
-                        {ticket.balasan.length} balasan
-                      </span>
+                      {ticket.balasan && typeof ticket.balasan === 'string' && ticket.balasan.trim() && (
+                        <>
+                          <span className="text-xs text-slate-500">•</span>
+                          <span className="text-xs text-green-600 font-semibold">
+                            ✓ Sudah dibalas
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
