@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { authAPI, nilaiAPI, pblAPI } from '../../lib/api'
 import { getSession } from '../../lib/auth'
 
-type NilaiType = 'kuis' | 'pbl'
+type NilaiType = 'kuis' | 'pbl' | 'materi'
 
 type Attempt = {
   id: string
@@ -136,7 +136,9 @@ function normalizeNilaiAll(data: any): NilaiRow[] {
     const title =
       type === 'kuis'
         ? String(a.judul_kuis ?? a.kuis_judul ?? a.title ?? '-')
-        : String(a.project_judul ?? a.judul_project ?? a.judul ?? a.title ?? '-')
+        : type === 'pbl'
+        ? String(a.project_judul ?? a.judul_project ?? a.judul ?? a.title ?? '-')
+        : String(a.materi_judul ?? a.materi ?? a.judul ?? a.title ?? '-')
 
     const nilaiValue = Number(a.nilai ?? a.score ?? 0)
     const benar = a.benar ?? a.correct
@@ -160,19 +162,21 @@ function normalizeNilaiAll(data: any): NilaiRow[] {
   if (data && typeof data === 'object' && !Array.isArray(data)) {
     const kuisList = Array.isArray((data as any).kuis) ? (data as any).kuis : []
     const pblList = Array.isArray((data as any).pbl) ? (data as any).pbl : []
+    const materiList = Array.isArray((data as any).materi) ? (data as any).materi : []
     kuisList.forEach((a: any) => pushRow('kuis', a))
     pblList.forEach((a: any) => pushRow('pbl', a))
+    materiList.forEach((a: any) => pushRow('materi', a))
 
     const flat = Array.isArray((data as any).data) ? (data as any).data : null
     if (flat) {
       flat.forEach((a: any) => {
-        const inferred: NilaiType = a?.project_id || a?.project_judul ? 'pbl' : 'kuis'
+        const inferred: NilaiType = a?.project_id || a?.project_judul ? 'pbl' : a?.materi_id || a?.materi_judul ? 'materi' : 'kuis'
         pushRow(inferred, a)
       })
     }
   } else if (Array.isArray(data)) {
     data.forEach((a: any) => {
-      const inferred: NilaiType = a?.project_id || a?.project_judul ? 'pbl' : 'kuis'
+      const inferred: NilaiType = a?.project_id || a?.project_judul ? 'pbl' : a?.materi_id || a?.materi_judul ? 'materi' : 'kuis'
       pushRow(inferred, a)
     })
   }
@@ -269,6 +273,7 @@ export default function Nilai() {
 
   const kuisItems = useMemo(() => items.filter((x) => x.type === 'kuis'), [items])
   const pblItems = useMemo(() => items.filter((x) => x.type === 'pbl'), [items])
+  const materiItems = useMemo(() => items.filter((x) => x.type === 'materi'), [items])
 
   const kuisChartPoints = useMemo(() => {
     const list = kuisItems
@@ -356,12 +361,12 @@ export default function Nilai() {
         )}
       </div>
 
-      {kuisItems.length === 0 && pblItems.length === 0 ? (
+      {kuisItems.length === 0 && pblItems.length === 0 && materiItems.length === 0 ? (
         <div className="rounded-3xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-200">
-          Belum ada nilai. Kerjakan kuis atau PBL terlebih dahulu.
+          Belum ada nilai. Kerjakan kuis, materi, atau PBL terlebih dahulu.
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <div className="text-lg font-extrabold tracking-tight text-slate-800">Nilai Kuis</div>
             <div className="mt-1 text-sm text-slate-600">Rekap hasil kuis yang sudah kamu kerjakan.</div>
@@ -438,6 +443,47 @@ export default function Nilai() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {pblItems.map((s) => (
+                      <tr key={s.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 text-slate-800">{s.title || '-'}</td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {(() => {
+                            const iso = s.tanggal
+                            return iso ? new Date(iso).toLocaleDateString('id-ID') : '-'
+                          })()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                            {Number.isFinite(s.nilai) ? s.nilai.toFixed(2) : '0.00'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="text-lg font-extrabold tracking-tight text-slate-800">Nilai Materi/Tugas</div>
+            <div className="mt-1 text-sm text-slate-600">Rekap nilai tugas dari materi.</div>
+
+            {materiItems.length === 0 ? (
+              <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
+                Belum ada nilai materi/tugas.
+              </div>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
+                    <tr>
+                      <th className="px-4 py-3">Materi</th>
+                      <th className="px-4 py-3">Tanggal</th>
+                      <th className="px-4 py-3">Nilai</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {materiItems.map((s) => (
                       <tr key={s.id} className="hover:bg-slate-50">
                         <td className="px-4 py-3 text-slate-800">{s.title || '-'}</td>
                         <td className="px-4 py-3 text-slate-600">
