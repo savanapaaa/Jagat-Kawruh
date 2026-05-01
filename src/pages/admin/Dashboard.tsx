@@ -36,7 +36,7 @@ export default function AdminDashboard() {
     <div className="space-y-6">
       <div className="rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200">
         <div className="inline-flex rounded-full bg-blue-100 px-4 py-2 text-xs font-semibold text-blue-800">
-          Dashboard Admin
+          Dasbor Admin
         </div>
         <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">Kontrol sistem</h1>
         <p className="mt-2 text-sm text-slate-600">

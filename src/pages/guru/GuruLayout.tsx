@@ -4,12 +4,11 @@ import { clearSession } from '../../lib/auth'
 import Footer from '../../components/Footer'
 
 const navItems = [
-  { to: '/guru/dashboard', label: 'Dashboard' },
+  { to: '/guru/dashboard', label: 'Dasbor' },
   { to: '/guru/materi', label: 'Materi' },
   { to: '/guru/kuis', label: 'Kuis' },
   { to: '/guru/pbl', label: 'PBL' },
   { to: '/guru/nilai', label: 'Nilai' },
-  { to: '/guru/helpdesk', label: 'Helpdesk' },
   { to: '/guru/profil', label: 'Profil' },
 ]
 
@@ -37,8 +36,8 @@ export default function GuruLayout() {
 
   return (
     <div className="flex min-h-screen flex-col bg-amber-50/40 text-slate-900">
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+      <header className="sticky top-0 z-[60] border-b border-slate-200 bg-white/80 backdrop-blur">
+        <div className="flex w-full items-center justify-between px-3 py-4 sm:px-6 lg:px-8">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="lg:hidden rounded-lg p-2 text-slate-700 hover:bg-slate-100"
@@ -52,11 +51,11 @@ export default function GuruLayout() {
             </svg>
           </button>
 
-          <a href="/" className="flex items-center gap-3">
+          <NavLink to="/guru/dashboard" className="flex items-center gap-3">
             <img
               src="/logo.png"
               alt="Jagat Kawruh"
-              className="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12"
+              className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14"
               onError={(e) => {
                 e.currentTarget.style.display = 'none'
               }}
@@ -65,33 +64,32 @@ export default function GuruLayout() {
               <div className="text-sm font-semibold tracking-wide">JAGAT KAWRUH</div>
               <div className="text-[11px] text-slate-600">Area Guru</div>
             </div>
-          </a>
+          </NavLink>
 
           <a
             href="/login"
             onClick={() => clearSession()}
-            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
+            className="rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
           >
-            Logout
+            Keluar
           </a>
         </div>
-        <div className="border-b border-slate-200" />
       </header>
 
       <main className="flex-1">
-        <div className="mx-auto max-w-6xl px-4 py-8">
+        <div className="w-full px-3 py-8 sm:px-4">
           <div className="flex flex-col gap-6 lg:flex-row">
             {/* Mobile Menu Overlay */}
             {menuOpen && (
               <div
-                className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+                className="fixed inset-0 z-[65] bg-black/50 lg:hidden"
                 onClick={() => setMenuOpen(false)}
               />
             )}
 
             {/* Sidebar */}
             <aside className={`
-              fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 lg:relative lg:translate-x-0
+              fixed inset-y-0 left-0 z-[70] w-64 transform transition-transform duration-300 lg:sticky lg:top-24 lg:self-start lg:translate-x-0
               ${menuOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
               <div className="h-full overflow-y-auto bg-amber-50/40 p-4 lg:bg-transparent lg:p-0">

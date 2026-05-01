@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getCurrentUser } from '../../lib/auth'
+import { Icon, type IconName } from '../../components/ui/Icon'
 import { 
   semuaNotifikasi, 
   tandaiBaca, 
@@ -14,7 +15,7 @@ export default function SiswaNotifikasi() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'semua' | 'belum-dibaca' | 'sudah-dibaca'>('semua')
 
-  const loadNotifikasi = async () => {
+  const loadNotifikasi = useCallback(async () => {
     setLoading(true)
     try {
       const data = await semuaNotifikasi(user?.email)
@@ -24,11 +25,19 @@ export default function SiswaNotifikasi() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user?.email])
 
   useEffect(() => {
     loadNotifikasi()
-  }, [user?.email])
+  }, [loadNotifikasi])
+
+  useEffect(() => {
+    const handler = () => {
+      void loadNotifikasi()
+    }
+    window.addEventListener('notifikasi:changed', handler)
+    return () => window.removeEventListener('notifikasi:changed', handler)
+  }, [loadNotifikasi])
 
   const handleTandaiBaca = async (id: string) => {
     await tandaiBaca(id)
@@ -47,18 +56,18 @@ export default function SiswaNotifikasi() {
     }
   }
 
-  const getIcon = (tipe: string) => {
+  const getIcon = (tipe: string): IconName => {
     switch (tipe) {
       case 'materi':
-        return '📚'
+        return 'book'
       case 'kuis':
-        return '📝'
+        return 'note'
       case 'pbl':
-        return '🎯'
+        return 'target'
       case 'nilai':
-        return '📊'
+        return 'chart'
       default:
-        return '📢'
+        return 'message'
     }
   }
 
@@ -106,8 +115,9 @@ export default function SiswaNotifikasi() {
       <div className="rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200">
         <div className="flex items-center justify-between">
           <div>
-            <div className="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-xs font-semibold text-emerald-800">
-              🔔 Notifikasi
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-xs font-semibold text-emerald-800">
+              <Icon name="alert" />
+              Notifikasi
             </div>
             <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">
               Pusat Notifikasi
@@ -121,7 +131,7 @@ export default function SiswaNotifikasi() {
           {belumDibacaCount > 0 && (
             <button
               onClick={handleTandaiSemuaBaca}
-              className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
+              className="rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600"
             >
               Tandai Semua Dibaca
             </button>
@@ -134,7 +144,7 @@ export default function SiswaNotifikasi() {
             onClick={() => setFilter('semua')}
             className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
               filter === 'semua'
-                ? 'bg-emerald-500 text-white'
+                ? 'bg-amber-500 text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
@@ -144,7 +154,7 @@ export default function SiswaNotifikasi() {
             onClick={() => setFilter('belum-dibaca')}
             className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
               filter === 'belum-dibaca'
-                ? 'bg-emerald-500 text-white'
+                ? 'bg-amber-500 text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
@@ -154,7 +164,7 @@ export default function SiswaNotifikasi() {
             onClick={() => setFilter('sudah-dibaca')}
             className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
               filter === 'sudah-dibaca'
-                ? 'bg-emerald-500 text-white'
+                ? 'bg-amber-500 text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
@@ -189,8 +199,8 @@ export default function SiswaNotifikasi() {
             >
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-full text-2xl ${getColor(notif.tipe)}`}>
-                    {getIcon(notif.tipe)}
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-full ${getColor(notif.tipe)}`}>
+                    <Icon name={getIcon(notif.tipe)} size="lg" />
                   </div>
                 </div>
                 <div className="flex-1">
@@ -213,16 +223,18 @@ export default function SiswaNotifikasi() {
                       {!notif.dibaca && (
                         <button
                           onClick={() => handleTandaiBaca(notif.id)}
-                          className="rounded-lg px-3 py-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-100"
+                          className="inline-flex items-center gap-2 rounded-lg px-3 py-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-100"
                         >
-                          ✓ Tandai Dibaca
+                          <Icon name="check" />
+                          Tandai Dibaca
                         </button>
                       )}
                       <button
                         onClick={() => handleHapus(notif.id)}
-                        className="rounded-lg px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-100"
+                        className="inline-flex items-center justify-center rounded-lg px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-100"
+                        aria-label="Hapus"
                       >
-                        ✕
+                        <Icon name="x" />
                       </button>
                     </div>
                   </div>

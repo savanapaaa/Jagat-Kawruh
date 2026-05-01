@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { kelasAPI, jurusanAPI } from '../../lib/api'
+import { kelasAPI, jurusanAPI, formatApiErrorAlert } from '../../lib/api'
+import { Icon } from '../../components/ui/Icon'
+import ResponsiveSelect from '../../components/ui/ResponsiveSelect'
 
 type Kelas = {
   id: string
@@ -33,10 +35,12 @@ export default function AdminKelas() {
   const loadJurusan = useCallback(async () => {
     try {
       const response = await jurusanAPI.getAll()
-      if (response.success && response.data && Array.isArray(response.data)) {
-        setJurusanList(response.data)
-        if (response.data.length > 0 && !formData.jurusan_id) {
-          setFormData(prev => ({ ...prev, jurusan_id: response.data![0].id }))
+      if (response.success) {
+        const dataArray = response.data?.data || response.data
+        if (!Array.isArray(dataArray)) return
+        setJurusanList(dataArray)
+        if (dataArray.length > 0 && !formData.jurusan_id) {
+          setFormData(prev => ({ ...prev, jurusan_id: dataArray[0].id }))
         }
       }
     } catch (err) {
@@ -48,7 +52,6 @@ export default function AdminKelas() {
     try {
       setLoading(true)
       const response = await kelasAPI.getAll()
-      console.log('Response kelas:', response)
       
       if (response.success) {
         const dataArray = response.data?.data || response.data
@@ -104,7 +107,7 @@ export default function AdminKelas() {
       }
     } catch (error) {
       console.error('Error loading kelas:', error)
-      alert('Gagal memuat data kelas.')
+      alert('Gagal memuat data kelas. Silakan coba lagi.')
     } finally {
       setLoading(false)
     }
@@ -121,6 +124,42 @@ export default function AdminKelas() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    if (!formData.tingkat || !formData.jurusan_id) {
+      alert('Tingkat dan jurusan wajib dipilih.')
+      return
+    }
+
+    const normalize = (v: unknown) =>
+      String(v ?? '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase()
+
+    const namaKey = normalize(formData.nama)
+    const tingkatKey = normalize(formData.tingkat)
+    const jurusanKey = normalize(formData.jurusan_id)
+
+    const isDuplicate = kelasList.some((k) => {
+      if (editingKelas && String(k.id) === String(editingKelas.id)) return false
+      return normalize(k.nama) === namaKey && normalize(k.tingkat) === tingkatKey && normalize(k.jurusan_id) === jurusanKey
+    })
+
+    if (isDuplicate) {
+      const jurusanName =
+        jurusanList.find((j) => String(j.id) === String(formData.jurusan_id))?.nama_jurusan ||
+        jurusanList.find((j) => String(j.id) === String(formData.jurusan_id))?.nama ||
+        ''
+      alert(
+        'Gagal menyimpan data kelas.\n\n' +
+          'Kelas dengan kombinasi berikut sudah ada:\n' +
+          `- Nama: ${String(formData.nama).trim() || '-'}\n` +
+          `- Tingkat: ${String(formData.tingkat).trim() || '-'}\n` +
+          `- Jurusan: ${jurusanName || String(formData.jurusan_id)}\n\n` +
+          'Silakan ubah data agar tidak duplikat.'
+      )
+      return
+    }
     
     try {
       if (editingKelas) {
@@ -135,7 +174,7 @@ export default function AdminKelas() {
       await loadData()
     } catch (error) {
       console.error('Error saving kelas:', error)
-      alert('Gagal menyimpan data kelas.')
+      alert(formatApiErrorAlert('Gagal menyimpan data kelas.', error))
     }
   }
 
@@ -159,7 +198,7 @@ export default function AdminKelas() {
       await loadData()
     } catch (error) {
       console.error('Error deleting kelas:', error)
-      alert('Gagal menghapus kelas.')
+      alert('Gagal menghapus kelas. Silakan coba lagi.')
     }
   }
 
@@ -206,16 +245,30 @@ export default function AdminKelas() {
               setShowForm(true)
             }
           }}
-          className="w-full shrink-0 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 sm:w-auto"
+          className="w-full shrink-0 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 sm:w-auto"
         >
-          {showForm ? '✕ Batal' : '+ Tambah Kelas'}
+          {showForm ? (
+            <span className="inline-flex items-center gap-2">
+              <Icon name="x" />
+              Batal
+            </span>
+          ) : (
+            '+ Tambah Kelas'
+          )}
         </button>
       </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-slate-800">
-            {editingKelas ? '✏️ Edit Kelas' : 'Tambah Kelas Baru'}
+            {editingKelas ? (
+              <span className="inline-flex items-center gap-2">
+                <Icon name="pencil" />
+                Edit Kelas
+              </span>
+            ) : (
+              'Tambah Kelas Baru'
+            )}
           </h2>
           
           <div className="grid gap-4 md:grid-cols-3">
@@ -238,16 +291,16 @@ export default function AdminKelas() {
               <label className="block text-sm font-semibold text-slate-700">
                 Tingkat <span className="text-red-500">*</span>
               </label>
-              <select
-                value={formData.tingkat}
-                onChange={(e) => setFormData({ ...formData, tingkat: e.target.value })}
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100"
-                required
-              >
-                {TINGKAT_OPTIONS.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+              <div className="mt-2">
+                <ResponsiveSelect
+                  value={formData.tingkat}
+                  onChange={(value) => setFormData({ ...formData, tingkat: value })}
+                  placeholder="Pilih Tingkat"
+                  includeEmptyOption={false}
+                  buttonClassName="focus:border-green-400 focus:ring-2 focus:ring-green-100"
+                  options={TINGKAT_OPTIONS.map((t) => ({ value: t, label: t }))}
+                />
+              </div>
               <p className="mt-1 text-xs text-slate-500">Pilih tingkat kelas</p>
             </div>
 
@@ -255,18 +308,19 @@ export default function AdminKelas() {
               <label className="block text-sm font-semibold text-slate-700">
                 Jurusan <span className="text-red-500">*</span>
               </label>
-              <select
-                value={formData.jurusan_id}
-                onChange={(e) => setFormData({ ...formData, jurusan_id: e.target.value })}
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100"
-                required
-              >
-                {jurusanList.map((jurusan) => (
-                  <option key={jurusan.id} value={jurusan.id}>
-                    {jurusan.nama_jurusan || jurusan.nama}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-2">
+                <ResponsiveSelect
+                  value={formData.jurusan_id}
+                  onChange={(value) => setFormData({ ...formData, jurusan_id: value })}
+                  placeholder="Pilih Jurusan"
+                  includeEmptyOption={false}
+                  buttonClassName="focus:border-green-400 focus:ring-2 focus:ring-green-100"
+                  options={jurusanList.map((jurusan) => ({
+                    value: jurusan.id,
+                    label: jurusan.nama_jurusan || jurusan.nama,
+                  }))}
+                />
+              </div>
               <p className="mt-1 text-xs text-slate-500">Pilih jurusan kelas</p>
             </div>
           </div>
@@ -281,7 +335,7 @@ export default function AdminKelas() {
             </button>
             <button
               type="submit"
-              className="w-full rounded-xl bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 sm:w-auto"
+              className="w-full rounded-xl bg-amber-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-amber-600 sm:w-auto"
             >
               {editingKelas ? 'Simpan Perubahan' : 'Tambah Kelas'}
             </button>
@@ -330,7 +384,7 @@ export default function AdminKelas() {
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => handleEdit(kelas)}
-                        className="flex-shrink-0 rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-200"
+                        className="flex-shrink-0 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-200"
                       >
                         Edit
                       </button>

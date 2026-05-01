@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { siswaAPI, jurusanAPI } from '../../lib/api'
+import { Icon } from '../../components/ui/Icon'
 
 export default function Siswa() {
   const [daftarSiswa, setDaftarSiswa] = useState<any[]>([])
@@ -59,7 +60,7 @@ export default function Siswa() {
         response = await siswaAPI.update(editingSiswa.id, {
           nama: formData.nama,
           email: formData.email,
-          kelas: formData.kelas,
+          kelas_id: formData.kelas,
           jurusan_id: formData.jurusan
         })
       } else {
@@ -68,7 +69,7 @@ export default function Siswa() {
           nama: formData.nama,
           email: formData.email,
           password: formData.password,
-          kelas: formData.kelas,
+          kelas_id: formData.kelas,
           jurusan_id: formData.jurusan
         })
       }
@@ -83,7 +84,7 @@ export default function Siswa() {
       }
     } catch (error: any) {
       console.error('Error saving siswa:', error)
-      alert(error.message || 'Gagal menyimpan data')
+      alert(error.message || 'Gagal menyimpan data. Silakan coba lagi.')
     }
   }
 
@@ -117,7 +118,7 @@ export default function Siswa() {
         }
       } catch (error) {
         console.error('Error deleting siswa:', error)
-        alert('Gagal menghapus siswa')
+        alert('Gagal menghapus siswa. Silakan coba lagi.')
       }
     }
   }
@@ -154,7 +155,14 @@ export default function Siswa() {
           }}
           className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
         >
-          <span>{showForm ? '✕ Batal' : '+ Tambah Siswa'}</span>
+          {showForm ? (
+            <span className="inline-flex items-center gap-2">
+              <Icon name="x" />
+              Batal
+            </span>
+          ) : (
+            <span>+ Tambah Siswa</span>
+          )}
         </button>
       </div>
 
@@ -162,7 +170,14 @@ export default function Siswa() {
       {showForm && (
         <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">
-            {editingSiswa ? '✏️ Edit Data Siswa' : 'Buat Akun Siswa Baru'}
+            {editingSiswa ? (
+              <span className="inline-flex items-center gap-2">
+                <Icon name="pencil" />
+                Edit Data Siswa
+              </span>
+            ) : (
+              'Buat Akun Siswa Baru'
+            )}
           </h2>
           
           <form onSubmit={handleSubmit} className="grid gap-4 max-w-2xl">

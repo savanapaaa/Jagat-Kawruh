@@ -90,7 +90,7 @@ export async function semuaJurusan(): Promise<Jurusan[]> {
   return new Promise((resolve, reject) => {
     const request = store.getAll()
     request.onsuccess = () => {
-      console.log('📚 Data jurusan dari DB:', request.result.length)
+      console.log('Data jurusan dari DB:', request.result.length)
       resolve(request.result)
     }
     request.onerror = () => reject(request.error)
@@ -177,7 +177,7 @@ export async function seedDefaultJurusan(): Promise<void> {
       const count = countRequest.result
       
       if (count > 0) {
-        console.log('⚠️ Data jurusan sudah ada:', count, 'records')
+        console.log('Data jurusan sudah ada:', count, 'records')
         resolve()
         return
       }
@@ -201,7 +201,7 @@ export async function seedDefaultJurusan(): Promise<void> {
         req.onsuccess = () => {
           completed++
           if (completed === total) {
-            console.log('✅ Default jurusan berhasil di-seed:', total, 'records')
+            console.log('Default jurusan berhasil di-seed:', total, 'records')
             resolve()
           }
         }

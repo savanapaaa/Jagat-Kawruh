@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { kuisAPI, authAPI, kelasAPI } from '../../lib/api'
+import { kuisAPI, authAPI, kelasAPI, formatApiErrorAlert } from '../../lib/api'
+import ResponsiveSelect from '../../components/ui/ResponsiveSelect'
 
 type KuisStatus = 'Aktif' | 'Draft' | 'Selesai'
 
@@ -28,6 +29,12 @@ type KuisItem = {
   status: KuisStatus
   peserta?: number
   soal: Question[]
+  total_soal?: number
+  total_questions?: number
+  jumlah_soal?: number
+  draft_soal_count?: number
+  totalSoal?: number
+  jumlahSoal?: number
 }
 
 type Kelas = {
@@ -47,7 +54,10 @@ export default function TeacherKuis() {
   const [kelasList, setKelasList] = useState<Kelas[]>([])
   const [status, setStatus] = useState<KuisStatus>('Aktif')
   const [numQuestions, setNumQuestions] = useState(5)
+  const [batasWaktu, setBatasWaktu] = useState(30)
   const [loading, setLoading] = useState(true)
+  const [pesertaByKuisId, setPesertaByKuisId] = useState<Record<string, number>>({})
+  const [attemptsByKuisId, setAttemptsByKuisId] = useState<Record<string, number>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const hasSubmitted = useRef(false)
 
@@ -107,23 +117,25 @@ export default function TeacherKuis() {
         }
       }
       
-      // Fallback: kelas manual
-      const manualKelas = [
-        { id: 'X', nama: 'Kelas X', tingkat: 'X' },
-        { id: 'XI', nama: 'Kelas XI', tingkat: 'XI' },
-        { id: 'XII', nama: 'Kelas XII', tingkat: 'XII' }
-      ]
-      setKelasList(manualKelas as any)
-      if (!kelas) setKelas('X')
+      // Fallback: load all kelas from backend.
+      // Avoid creating quizzes with legacy tingkat IDs like "X".
+      const kelasResponse = await kelasAPI.getAll()
+      if (kelasResponse.success) {
+        const allKelas = kelasResponse.data?.data || kelasResponse.data || []
+        if (Array.isArray(allKelas) && allKelas.length > 0) {
+          setKelasList(allKelas)
+          if (!kelas) setKelas(String(allKelas[0].id))
+          return
+        }
+      }
+
+      setKelasList([])
+      if (!kelas) setKelas('')
     } catch (error) {
       console.error('Error loading kelas diampu:', error)
-      const manualKelas = [
-        { id: 'X', nama: 'Kelas X', tingkat: 'X' },
-        { id: 'XI', nama: 'Kelas XI', tingkat: 'XI' },
-        { id: 'XII', nama: 'Kelas XII', tingkat: 'XII' }
-      ]
-      setKelasList(manualKelas as any)
-      if (!kelas) setKelas('X')
+
+      setKelasList([])
+      if (!kelas) setKelas('')
     }
   }
 
@@ -140,19 +152,142 @@ export default function TeacherKuis() {
     }
   }
 
+  function extractArrayFromPayload(value: any): any[] {
+    if (Array.isArray(value)) return value
+    if (!value || typeof value !== 'object') return []
+    const directKeys = ['data', 'items', 'results', 'rows', 'attempts', 'kuis_attempts']
+    for (const key of directKeys) {
+      const v = (value as any)[key]
+      if (Array.isArray(v)) return v
+    }
+    const data = (value as any).data
+    if (data && typeof data === 'object') {
+      if (Array.isArray((data as any).data)) return (data as any).data
+      for (const key of directKeys) {
+        const v = (data as any)[key]
+        if (Array.isArray(v)) return v
+        if (v && typeof v === 'object' && Array.isArray((v as any).data)) return (v as any).data
+      }
+    }
+    return []
+  }
+
+  function countUniqueParticipants(list: any[]): number {
+    if (!Array.isArray(list) || list.length === 0) return 0
+
+    const unique = new Set<string>()
+    for (const item of list) {
+      const studentKey =
+        item?.siswa_id ??
+        item?.user_id ??
+        item?.student_id ??
+        item?.siswa?.id ??
+        item?.user?.id ??
+        item?.email ??
+        item?.siswa_email ??
+        item?.user_email ??
+        item?.siswa_nama ??
+        item?.nama_siswa ??
+        item?.name
+
+      if (studentKey != null && String(studentKey).trim().length > 0) {
+        unique.add(String(studentKey))
+      }
+    }
+
+    return unique.size > 0 ? unique.size : list.length
+  }
+
+  useEffect(() => {
+    if (!Array.isArray(currentItems) || currentItems.length === 0) return
+
+    const ids = currentItems
+      .map((x) => String(x?.id ?? '').trim())
+      .filter(Boolean)
+
+    const need = ids.filter((id) => pesertaByKuisId[id] == null)
+    const needAttempts = ids.filter((id) => attemptsByKuisId[id] == null)
+    if (need.length === 0 && needAttempts.length === 0) return
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const pairs = await Promise.all(
+          Array.from(new Set([...need, ...needAttempts])).map(async (kuisId) => {
+            try {
+              const res = await kuisAPI.listAttempts(kuisId)
+              const list = extractArrayFromPayload(res)
+              const totalAttempts = Array.isArray(list) ? list.length : 0
+              const uniqueParticipants = countUniqueParticipants(list)
+              return [kuisId, uniqueParticipants, totalAttempts] as const
+            } catch {
+              return [kuisId, 0, 0] as const
+            }
+          })
+        )
+
+        if (cancelled) return
+        setPesertaByKuisId((prev) => {
+          const next = { ...prev }
+          for (const [kuisId, uniqueCount] of pairs) {
+            next[kuisId] = uniqueCount
+          }
+          return next
+        })
+        setAttemptsByKuisId((prev) => {
+          const next = { ...prev }
+          for (const [kuisId, , totalAttempts] of pairs) {
+            next[kuisId] = totalAttempts
+          }
+          return next
+        })
+      } catch {
+        // ignore
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentItems])
+
   // Terima data dari halaman buat soal
   useEffect(() => {
-    const state = location.state as { newKuis?: { title: string; kelas?: string; status: KuisStatus; questions: Question[] } } | null
+    const state = location.state as {
+      newKuis?: { title: string; kelas?: string; status: KuisStatus; questions: Question[]; batasWaktu?: number }
+    } | null
     if (state?.newKuis && !isSubmitting && !hasSubmitted.current) {
       setIsSubmitting(true)
       hasSubmitted.current = true
+
+      const limit = Number(state.newKuis.batasWaktu ?? batasWaktu)
+      const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 30
       
       const newItem = {
         judul: state.newKuis.title,
-        kelas: [state.newKuis.kelas || 'X'],
-        batas_waktu: 30,
+        // Backend now requires kelas_ids and will auto-fill legacy `kelas` from tingkat.
+        kelas_ids: state.newKuis.kelas
+          ? [
+              /^\d+$/.test(String(state.newKuis.kelas))
+                ? Number(state.newKuis.kelas)
+                : String(state.newKuis.kelas),
+            ]
+          : [],
+        batas_waktu: safeLimit,
         status: state.newKuis.status,
         soal: state.newKuis.questions,
+      }
+
+      if (newItem.kelas_ids.length === 0) {
+        alert('Pilih kelas terlebih dahulu sebelum membuat kuis.')
+        setIsSubmitting(false)
+        // Clear state supaya tidak loop submit
+        navigate(location.pathname, { replace: true, state: {} })
+        setTimeout(() => {
+          hasSubmitted.current = false
+        }, 100)
+        return
       }
       
       kuisAPI.create(newItem)
@@ -162,23 +297,35 @@ export default function TeacherKuis() {
             alert('Kuis berhasil dibuat!')
           }
         })
-        .catch(err => {
+        .catch((err: any) => {
           console.error('Error creating kuis:', err)
-          alert('Gagal membuat kuis: ' + (err.message || 'Unknown error'))
+          if (err?.status === 403) {
+            alert(
+              'Gagal membuat kuis. Akses ditolak (Forbidden).\n\n' +
+                'Akun ini tidak memiliki izin untuk membuat kuis.\n' +
+                '- Pastikan login sebagai Guru/Admin\n' +
+                '- Pastikan guru sudah memiliki kelas diampu (kelas_diampu) untuk kelas yang dipilih\n\n' +
+                (err?.message ? `Detail: ${String(err.message)}` : '')
+            )
+            return
+          }
+          alert(formatApiErrorAlert('Gagal membuat kuis.', err))
         })
         .finally(() => {
           setIsSubmitting(false)
           // Clear state setelah selesai
           navigate(location.pathname, { replace: true, state: {} })
           // Reset ref untuk submission berikutnya (kalau ada)
-          setTimeout(() => { hasSubmitted.current = false }, 100)
+          setTimeout(() => {
+            hasSubmitted.current = false
+          }, 100)
         })
     }
   }, [location.state, isSubmitting, navigate, location.pathname])
 
   const canSubmit = useMemo(() => {
-    return title.trim().length > 0 && numQuestions > 0
-  }, [title, numQuestions])
+    return title.trim().length > 0 && numQuestions > 0 && batasWaktu > 0 && !!kelas
+  }, [title, numQuestions, batasWaktu, kelas])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -191,6 +338,7 @@ export default function TeacherKuis() {
         kelas,
         status,
         numQuestions,
+        batasWaktu,
       },
     })
   }
@@ -205,7 +353,7 @@ export default function TeacherKuis() {
         }
       } catch (error) {
         console.error('Error deleting kuis:', error)
-        alert('Gagal menghapus kuis')
+        alert('Gagal menghapus kuis. Silakan coba lagi.')
       }
     }
   }
@@ -222,19 +370,21 @@ export default function TeacherKuis() {
     <div className="rounded-3xl bg-white p-4 sm:p-6 lg:p-7 shadow-sm ring-1 ring-slate-200">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="text-xs font-semibold tracking-wide text-slate-500">KUIS</div>
-          <h1 className="mt-2 text-xl sm:text-2xl font-extrabold tracking-tight text-slate-800">Kelola kuis</h1>
+          <div className="inline-flex rounded-full bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-800">
+            Kuis Guru
+          </div>
+          <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">Kelola kuis</h1>
           <p className="mt-2 text-sm text-slate-600">Guru bisa menambahkan kuis baru dan melihat peserta.</p>
         </div>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="w-full sm:w-auto rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600"
+            className="w-full sm:w-auto rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
           >
             + Tambah Kuis
           </button>
         )}
-      </div>
+        </div>
 
       {showForm && (
         <form className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6" onSubmit={handleSubmit}>
@@ -252,22 +402,16 @@ export default function TeacherKuis() {
 
             <div>
               <label className="text-sm font-semibold text-slate-700">Kelas</label>
-              <select
-                value={kelas}
-                onChange={(e) => setKelas(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-amber-400"
-                required
-              >
-                {kelasList.length === 0 ? (
-                  <option value="">Tidak ada kelas yang diampu</option>
-                ) : (
-                  kelasList.map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {k.nama}
-                    </option>
-                  ))
-                )}
-              </select>
+              <div className="mt-2">
+                <ResponsiveSelect
+                  value={kelas}
+                  onChange={setKelas}
+                  placeholder={kelasList.length === 0 ? 'Tidak ada kelas yang diampu' : 'Pilih Kelas'}
+                  includeEmptyOption={false}
+                  disabled={kelasList.length === 0}
+                  options={kelasList.map((k) => ({ value: String(k.id), label: k.nama }))}
+                />
+              </div>
               {kelasList.length === 0 && (
                 <p className="mt-1 text-xs text-red-500">
                   Anda belum diamanahi kelas. Hubungi admin untuk menambahkan kelas.
@@ -290,27 +434,44 @@ export default function TeacherKuis() {
             </div>
 
             <div>
-              <label className="text-sm font-semibold text-slate-700">Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as KuisStatus)}
+              <label className="text-sm font-semibold text-slate-700">Batas waktu (menit)</label>
+              <input
+                value={batasWaktu}
+                onChange={(e) => setBatasWaktu(Number(e.target.value) || 0)}
+                type="number"
+                min="1"
+                max="240"
                 className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-amber-400"
-              >
-                <option value="Aktif">Aktif</option>
-                <option value="Draft">Draft</option>
-                <option value="Selesai">Selesai</option>
-              </select>
+              />
             </div>
 
-            <div className="md:col-span-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div>
+              <label className="text-sm font-semibold text-slate-700">Status</label>
+              <div className="mt-2">
+                <ResponsiveSelect
+                  value={status}
+                  onChange={(value) => setStatus(value as KuisStatus)}
+                  placeholder="Pilih Status"
+                  includeEmptyOption={false}
+                  options={[
+                    { value: 'Aktif', label: 'Aktif' },
+                    { value: 'Draft', label: 'Draf' },
+                    { value: 'Selesai', label: 'Selesai' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className="md:col-span-3 flex flex-col gap-2 sm:flex-row sm:items-end">
               <button
                 type="button"
                 onClick={() => {
                   setShowForm(false)
                   setTitle('')
-                  setKelas('X')
+                  setKelas(kelasList.length > 0 ? String(kelasList[0].id) : '')
                   setStatus('Aktif')
                   setNumQuestions(5)
+                  setBatasWaktu(30)
                 }}
                 className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
@@ -335,6 +496,7 @@ export default function TeacherKuis() {
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">Judul</th>
               <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-600">Status</th>
               <th className="hidden md:table-cell px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-600">Peserta</th>
+              <th className="hidden md:table-cell px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-600">Attempt</th>
               <th className="hidden md:table-cell px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-600">Soal</th>
               <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-600">Aksi</th>
             </tr>
@@ -342,7 +504,7 @@ export default function TeacherKuis() {
           <tbody className="divide-y divide-slate-100">
             {currentItems.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">
                   Belum ada kuis. Klik "Tambah Kuis" untuk membuat.
                 </td>
               </tr>
@@ -352,7 +514,9 @@ export default function TeacherKuis() {
                   <td className="px-4 py-3">
                     <div className="text-sm font-medium text-slate-800">{item.judul}</div>
                     <div className="mt-1 flex items-center gap-2 md:hidden text-xs text-slate-500">
-                      <span>{item.peserta || 0} peserta</span>
+                      <span>{(pesertaByKuisId[item.id] ?? item.peserta) || 0} peserta</span>
+                      <span>•</span>
+                      <span>{(attemptsByKuisId[item.id] ?? 0)} attempt</span>
                       <span>•</span>
                       <span>{item.soal?.length || 0} soal</span>
                     </div>
@@ -370,13 +534,44 @@ export default function TeacherKuis() {
                       {item.status}
                     </span>
                   </td>
-                  <td className="hidden md:table-cell px-4 py-3 text-center text-sm text-slate-600">{item.peserta || 0}</td>
-                  <td className="hidden md:table-cell px-4 py-3 text-center text-sm text-slate-600">{item.soal?.length || 0}</td>
+                  <td className="hidden md:table-cell px-4 py-3 text-center text-sm text-slate-600">{(pesertaByKuisId[item.id] ?? item.peserta) || 0}</td>
+                  <td className="hidden md:table-cell px-4 py-3 text-center text-sm text-slate-600">{attemptsByKuisId[item.id] || 0}</td>
+                  <td className="hidden md:table-cell px-4 py-3 text-center text-sm text-slate-600">
+                    {(item as any)?.total_soal ??
+                      (item as any)?.total_questions ??
+                      (item as any)?.jumlah_soal ??
+                      (item as any)?.draft_soal_count ??
+                      (item as any)?.totalSoal ??
+                      (item as any)?.jumlahSoal ??
+                      (item.soal?.length || 0)}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2 overflow-x-auto md:justify-end">
+                      {item.status === 'Draft' ? (
+                        <button
+                          onClick={() =>
+                            navigate('/guru/kuis/buat-soal', {
+                              state: {
+                                draftKuisId: item.id,
+                                expectedCount:
+                                  (item as any)?.total_soal ??
+                                  (item as any)?.total_questions ??
+                                  (item as any)?.jumlah_soal ??
+                                  (item as any)?.draft_soal_count ??
+                                  (item as any)?.totalSoal ??
+                                  (item as any)?.jumlahSoal ??
+                                  undefined,
+                              },
+                            })
+                          }
+                          className="flex-shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-amber-600"
+                        >
+                          Lanjutkan
+                        </button>
+                      ) : null}
                       <button
                         onClick={() => navigate(`/guru/kuis/${item.id}`)}
-                        className="flex-shrink-0 rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-200"
+                        className="flex-shrink-0 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-200"
                       >
                         Detail
                       </button>
@@ -402,7 +597,7 @@ export default function TeacherKuis() {
             disabled={currentPage === 1}
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Prev
+            Sebelumnya
           </button>
           <div className="text-sm text-slate-600">
             Halaman {currentPage} dari {totalPages}
@@ -412,7 +607,7 @@ export default function TeacherKuis() {
             disabled={currentPage === totalPages}
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Next
+            Berikutnya
           </button>
         </div>
       )}

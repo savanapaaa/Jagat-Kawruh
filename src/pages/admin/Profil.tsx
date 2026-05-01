@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { getCurrentUser } from '../../lib/auth'
+import { getCurrentUser, patchSession } from '../../lib/auth'
 import { profileAPI } from '../../lib/api'
 
 export default function AdminProfil() {
   const user = getCurrentUser()
   const [isEditingProfil, setIsEditingProfil] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+
+  const [profile, setProfile] = useState<{ nama?: string; email?: string } | null>(null)
 
   const [nama, setNama] = useState('')
   const [email, setEmail] = useState('')
@@ -22,8 +24,11 @@ export default function AdminProfil() {
     try {
       const response = await profileAPI.get()
       if (response.success && response.data) {
-        setNama(response.data.nama || '')
-        setEmail(response.data.email || '')
+        const namaValue = (response.data as any).nama ?? (response.data as any).name ?? ''
+        const emailValue = (response.data as any).email ?? ''
+        setProfile({ ...(response.data as any), nama: namaValue, email: emailValue })
+        setNama(namaValue)
+        setEmail(emailValue)
       }
     } catch (error) {
       console.error('Error loading profile:', error)
@@ -34,13 +39,18 @@ export default function AdminProfil() {
     e.preventDefault()
     
     try {
-      const response = await profileAPI.update({ nama })
+      const response = await profileAPI.update({ nama, email })
       
       if (response.success) {
         alert(response.message || 'Profil berhasil diubah')
+        const cleanedNama = nama.trim()
+        const cleanedEmail = email.trim()
+        patchSession({ nama: cleanedNama, email: cleanedEmail })
+        setProfile((prev) => ({ ...(prev ?? {}), nama: cleanedNama, email: cleanedEmail }))
+        setNama(cleanedNama)
+        setEmail(cleanedEmail)
         setIsEditingProfil(false)
         await loadProfile()
-        window.location.reload()
       } else {
         alert('Error: ' + response.message)
       }
@@ -111,11 +121,11 @@ export default function AdminProfil() {
           <div className="mt-6 space-y-4">
             <div>
               <div className="text-xs font-semibold text-slate-500">Nama Lengkap</div>
-              <div className="mt-1 text-sm text-slate-800">{user?.nama || '-'}</div>
+              <div className="mt-1 text-sm text-slate-800">{profile?.nama || user?.nama || '-'}</div>
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-500">Email</div>
-              <div className="mt-1 text-sm text-slate-800">{user?.email || '-'}</div>
+              <div className="mt-1 text-sm text-slate-800">{profile?.email || user?.email || '-'}</div>
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-500">Role</div>
@@ -155,7 +165,11 @@ export default function AdminProfil() {
               </button>
               <button
                 type="button"
-                onClick={() => setIsEditingProfil(false)}
+                onClick={() => {
+                  setIsEditingProfil(false)
+                  setNama(profile?.nama || '')
+                  setEmail(profile?.email || '')
+                }}
                 className="rounded-full border border-slate-300 px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Batal

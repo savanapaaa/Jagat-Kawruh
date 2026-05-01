@@ -1,63 +1,64 @@
-type NavLink = { label: string; href: string }
-
 import Footer from '../components/Footer'
 
 type Feature = { title: string; description: string }
 
 type Step = { number: string; title: string; description: string }
 
-const NAV_LINKS: NavLink[] = [
-  { label: 'Home', href: '#home' },
-  { label: 'Tentang Kami', href: '#tentang' },
-]
-
 const FEATURES: Feature[] = [
   {
-    title: 'Materi Terstruktur',
-    description: 'Materi disusun dari dasar ke lanjutan agar belajar lebih mudah.',
+    title: 'Materi (PDF/Video/Link)',
+    description: 'Akses materi sesuai kelas/jurusan Anda. Materi bisa berupa PDF, video, atau link, dan dapat diunduh untuk akses offline.',
   },
   {
-    title: 'Tugas & Kuis',
-    description: 'Latihan terarah untuk menguatkan pemahaman setelah belajar.',
+    title: 'Kuis Timer + Auto Grading',
+    description: 'Kerjakan kuis dengan timer (sekali kesempatan). Setelah submit, nilai dihitung otomatis dan hasilnya langsung bisa dilihat.',
   },
   {
-    title: 'Nilai & Progres',
-    description: 'Pantau progres belajar dengan ringkasan nilai dan feedback.',
+    title: 'PBL 5 Fase (Kelompok)',
+    description: 'Kerjakan project PBL dalam 5 fase bersama kelompok. Fase berikutnya terbuka setelah fase sebelumnya selesai dan disetujui.',
+  },
+  {
+    title: 'Nilai Kuis & PBL',
+    description: 'Pantau nilai kuis dan hasil PBL, lengkap dengan progres pembelajaran agar Anda tahu apa yang perlu ditingkatkan.',
+  },
+  {
+    title: 'Notifikasi Pembelajaran',
+    description: 'Dapatkan notifikasi terkait aktivitas belajar agar Anda tidak ketinggalan informasi penting.',
   },
 ]
 
 const HOW_IT_WORKS: Step[] = [
   {
     number: '01',
-    title: 'Daftar Akun',
-    description: 'Buat akun Anda dengan mudah dan cepat menggunakan email atau nomor telepon.',
+    title: 'Masuk',
+    description: 'Masuk dengan email dan password. Sistem akan mengarahkan Anda ke dasbor siswa.',
   },
   {
     number: '02',
-    title: 'Login ke Platform',
-    description: 'Masuk ke platform menggunakan kredensial yang telah Anda buat.',
+    title: 'Akses Materi',
+    description: 'Buka menu Materi untuk melihat materi yang tersedia sesuai kelas/jurusan Anda, lalu baca atau unduh bila diperlukan.',
   },
   {
     number: '03',
-    title: 'Akses Materi',
-    description: 'Jelajahi berbagai materi pembelajaran yang telah disediakan oleh guru.',
+    title: 'Kerjakan Kuis',
+    description: 'Mulai kuis, kerjakan dengan timer, dan submit jawaban. Nilai akan dihitung otomatis setelah dikumpulkan.',
   },
   {
     number: '04',
-    title: 'Kerjakan Tugas',
-    description: 'Selesaikan tugas dan kuis yang diberikan sesuai dengan jadwal.',
+    title: 'Kerjakan PBL per Fase',
+    description: 'Masuk ke menu PBL dan isi tugas per fase bersama kelompok. Progress akan bertambah seiring fase yang diselesaikan.',
   },
   {
     number: '05',
-    title: 'Lihat Nilai',
-    description: 'Pantau perkembangan belajar Anda melalui nilai dan feedback yang diberikan.',
+    title: 'Lihat Nilai & Progres',
+    description: 'Pantau nilai kuis dan status PBL, serta progres belajar Anda untuk mengetahui perkembangan secara berkala.',
   },
 ]
 
 function Navbar() {
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+    <header className="sticky top-0 z-[60] border-b border-slate-200 bg-white/80 backdrop-blur">
+      <div className="flex w-full items-center justify-between px-3 py-4 sm:px-6 lg:px-8">
         <a href="#home" className="flex items-center gap-3">
           <img
             src="/logo.png"
@@ -73,21 +74,13 @@ function Navbar() {
           </div>
         </a>
 
-        <nav className="flex items-center gap-6 text-sm text-slate-700">
-          {NAV_LINKS.map((link) => (
-            <a key={link.href} href={link.href} className="hover:text-slate-900">
-              {link.label}
-            </a>
-          ))}
-          <a
-            href="/login"
-            className="rounded-lg bg-amber-500 px-5 py-2.5 font-semibold text-white shadow-sm hover:bg-amber-600"
-          >
-            Login
-          </a>
-        </nav>
+        <a
+          href="/login"
+          className="rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
+        >
+          Masuk
+        </a>
       </div>
-      <div className="border-b border-slate-200" />
     </header>
   )
 }
@@ -100,7 +93,7 @@ function Hero() {
         <div className="absolute -left-32 -top-32 h-[420px] w-[420px] rounded-full bg-amber-100/40" />
       </div>
 
-      <div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-16 lg:grid-cols-2 lg:items-center lg:py-20">
+      <div className="relative mx-auto grid w-full max-w-6xl gap-10 px-3 py-16 sm:px-4 lg:grid-cols-2 lg:items-center lg:py-20">
         <div>
           <div className="inline-flex rounded-full bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-800">
             Platform Pembelajaran Modern
@@ -131,11 +124,6 @@ function Hero() {
               Pelajari Lebih Lanjut
             </a>
           </div>
-
-          <p className="mt-4 text-xs text-slate-500">
-            Taruh logo kamu di <span className="font-semibold">public/logo.png</span> dan gambar hero di{' '}
-            <span className="font-semibold">public/hero-school.jpg</span>
-          </p>
         </div>
 
         <div className="relative lg:justify-self-end">
@@ -169,41 +157,11 @@ function Hero() {
   )
 }
 
-function About() {
-  return (
-    <section id="tentang" className="bg-white">
-      <div className="mx-auto max-w-6xl px-4 py-16">
-        <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
-          <div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-slate-800">Tentang Kami</h2>
-            <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              Jagat Kawruh dibuat untuk membantu proses belajar menjadi lebih terarah: materi yang rapi, alur
-              yang jelas, dan latihan yang relevan.
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
-              <div className="text-xs font-semibold text-amber-700">Fokus</div>
-              <div className="mt-2 text-base font-bold text-slate-800">Pembelajaran efektif</div>
-              <div className="mt-2 text-sm text-slate-600">Materi singkat, tepat, dan mudah dipahami.</div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
-              <div className="text-xs font-semibold text-amber-700">Tujuan</div>
-              <div className="mt-2 text-base font-bold text-slate-800">Mendukung guru & siswa</div>
-              <div className="mt-2 text-sm text-slate-600">Belajar mandiri dan terukur.</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="border-b border-slate-200" />
-    </section>
-  )
-}
-
 function Features() {
   return (
-    <section id="fitur" className="bg-white">
-      <div className="mx-auto max-w-6xl px-4 py-16">
+    <section id="fitur" className="scroll-mt-24">
+      <div className="border-t border-slate-200" />
+      <div className="mx-auto w-full max-w-6xl px-3 py-16 sm:px-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-3xl font-extrabold tracking-tight text-slate-800">Fitur</h2>
@@ -216,7 +174,7 @@ function Features() {
 
         <div className="mt-10 grid gap-5 md:grid-cols-3">
           {FEATURES.map((feature, index) => (
-            <div key={feature.title} className="rounded-3xl border border-slate-200 bg-slate-50 p-7">
+            <div key={feature.title} className="rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200">
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-sm font-bold text-amber-700">
                 {index + 1}
               </div>
@@ -232,30 +190,32 @@ function Features() {
 
 function HowItWorks() {
   return (
-    <section id="cara-kerja" className="bg-white">
+    <section id="cara-kerja" className="scroll-mt-24">
       <div className="border-t border-slate-200" />
-      <div className="mx-auto max-w-6xl px-4 py-16">
+      <div className="mx-auto w-full max-w-6xl px-3 py-16 sm:px-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-3xl font-extrabold tracking-tight text-slate-800">Cara Kerja</h2>
           <p className="text-sm text-slate-500">Langkah mudah untuk memulai pembelajaran digital bersama kami</p>
         </div>
 
         <div className="mt-12">
-          <div className="relative mx-auto max-w-3xl">
-            <div className="absolute left-5 top-0 h-full w-px bg-amber-200" />
+          <div className="mx-auto max-w-3xl rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200 sm:p-8">
+            <div className="relative">
+              <div className="absolute left-5 top-0 h-full w-px bg-amber-200" />
 
-            <div className="grid gap-8">
-              {HOW_IT_WORKS.map((step) => (
-                <div key={step.number} className="relative pl-16">
-                  <div className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-full bg-amber-500 text-sm font-extrabold text-white shadow-sm">
-                    {step.number}
+              <div className="grid gap-8">
+                {HOW_IT_WORKS.map((step) => (
+                  <div key={step.number} className="relative pl-16">
+                    <div className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-full bg-amber-500 text-sm font-extrabold text-white shadow-sm">
+                      {step.number}
+                    </div>
+                    <div className="pt-1">
+                      <div className="text-lg font-bold text-slate-800">{step.title}</div>
+                      <div className="mt-1 text-sm text-slate-600">{step.description}</div>
+                    </div>
                   </div>
-                  <div className="pt-1">
-                    <div className="text-lg font-bold text-slate-800">{step.title}</div>
-                    <div className="mt-1 text-sm text-slate-600">{step.description}</div>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -266,10 +226,10 @@ function HowItWorks() {
 
 function LoginCta() {
   return (
-    <section className="bg-white">
+    <section>
       <div className="border-t border-slate-200" />
-      <div className="mx-auto max-w-6xl px-4 py-12">
-        <div className="rounded-3xl bg-amber-50 p-8 ring-1 ring-amber-100">
+      <div className="mx-auto w-full max-w-6xl px-3 py-12 sm:px-4">
+        <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-sm font-semibold text-amber-800">Siap mulai?</div>
@@ -281,7 +241,7 @@ function LoginCta() {
               href="/login"
               className="inline-flex items-center justify-center rounded-xl bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
             >
-              Login
+              Masuk
             </a>
           </div>
         </div>
@@ -296,7 +256,6 @@ export default function Home() {
       <Navbar />
       <main className="flex-1">
         <Hero />
-        <About />
         <Features />
         <HowItWorks />
         <LoginCta />

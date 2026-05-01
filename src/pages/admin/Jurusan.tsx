@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { jurusanAPI } from '../../lib/api'
+import { jurusanAPI, formatApiErrorAlert } from '../../lib/api'
+import { Icon } from '../../components/ui/Icon'
 
 type Jurusan = {
   id: string
@@ -7,6 +8,7 @@ type Jurusan = {
   nama_jurusan?: string
   deskripsi?: string
 }
+ 
 
 export default function AdminJurusan() {
   const [jurusanList, setJurusanList] = useState<Jurusan[]>([])
@@ -35,7 +37,7 @@ export default function AdminJurusan() {
       }
     } catch (error) {
       console.error('Error loading jurusan:', error)
-      alert('Gagal memuat data jurusan.')
+      alert('Gagal memuat data jurusan. Silakan coba lagi.')
     } finally {
       setLoading(false)
     }
@@ -45,13 +47,58 @@ export default function AdminJurusan() {
     e.preventDefault()
     
     try {
+      const namaNormalized = String(formData.nama ?? '').trim().toUpperCase()
+      const deskripsiNormalized = String(formData.deskripsi ?? '').trim()
+      const deskripsiKey = deskripsiNormalized.replace(/\s+/g, ' ').toUpperCase()
+
+      if (!namaNormalized) {
+        alert('Nama jurusan wajib diisi. Silakan coba lagi.')
+        return
+      }
+
+      // Nama jurusan di sini adalah singkatan (contoh: RPL, TKJ, MM), bukan nama kelas.
+      // Jadi: tidak boleh ada spasi/angka.
+      if (!/^[A-Z]+$/.test(namaNormalized)) {
+        alert('Nama jurusan harus berupa singkatan tanpa spasi/angka (contoh: RPL, TKJ, MM, AKL).')
+        return
+      }
+
+      const hasDuplicate = jurusanList.some((j) => {
+        if (editingJurusan && String(j.id) === String(editingJurusan.id)) return false
+        const existing = String(j.nama || j.nama_jurusan || '').trim().toUpperCase()
+        return existing === namaNormalized
+      })
+
+      if (hasDuplicate) {
+        alert(`Jurusan "${namaNormalized}" sudah ada. Gunakan singkatan lain.`)
+        return
+      }
+
+      if (deskripsiKey.length > 0) {
+        const hasDuplicateDeskripsi = jurusanList.some((j) => {
+          if (editingJurusan && String(j.id) === String(editingJurusan.id)) return false
+          const existingDesc = String(j.deskripsi ?? '').trim().replace(/\s+/g, ' ').toUpperCase()
+          return existingDesc.length > 0 && existingDesc === deskripsiKey
+        })
+
+        if (hasDuplicateDeskripsi) {
+          alert(`Deskripsi jurusan "${deskripsiNormalized}" sudah ada. Gunakan deskripsi lain.`)
+          return
+        }
+      }
+
+      const payload = {
+        nama: namaNormalized,
+        deskripsi: deskripsiNormalized,
+      }
+
       if (editingJurusan) {
         // Update
-        await jurusanAPI.update(editingJurusan.id, formData)
+        await jurusanAPI.update(editingJurusan.id, payload)
         alert('Jurusan berhasil diperbarui!')
       } else {
         // Create
-        await jurusanAPI.create(formData)
+        await jurusanAPI.create(payload)
         alert('Jurusan berhasil ditambahkan!')
       }
       
@@ -59,7 +106,7 @@ export default function AdminJurusan() {
       await loadData()
     } catch (error) {
       console.error('Error saving jurusan:', error)
-      alert('Gagal menyimpan data jurusan.')
+      alert(formatApiErrorAlert('Gagal menyimpan data jurusan.', error))
     }
   }
 
@@ -82,7 +129,7 @@ export default function AdminJurusan() {
       await loadData()
     } catch (error) {
       console.error('Error deleting jurusan:', error)
-      alert('Gagal menghapus jurusan.')
+      alert('Gagal menghapus jurusan. Silakan coba lagi.')
     }
   }
 
@@ -128,16 +175,30 @@ export default function AdminJurusan() {
               setShowForm(true)
             }
           }}
-          className="w-full shrink-0 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 sm:w-auto"
+          className="w-full shrink-0 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 sm:w-auto"
         >
-          {showForm ? '✕ Batal' : '+ Tambah Jurusan'}
+          {showForm ? (
+            <span className="inline-flex items-center gap-2">
+              <Icon name="x" />
+              Batal
+            </span>
+          ) : (
+            '+ Tambah Jurusan'
+          )}
         </button>
       </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-slate-800">
-            {editingJurusan ? '✏️ Edit Jurusan' : 'Tambah Jurusan Baru'}
+            {editingJurusan ? (
+              <span className="inline-flex items-center gap-2">
+                <Icon name="pencil" />
+                Edit Jurusan
+              </span>
+            ) : (
+              'Tambah Jurusan Baru'
+            )}
           </h2>
           
           <div className="grid gap-4 md:grid-cols-2">
@@ -179,7 +240,7 @@ export default function AdminJurusan() {
             </button>
             <button
               type="submit"
-              className="w-full rounded-xl bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 sm:w-auto"
+              className="w-full rounded-xl bg-amber-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-amber-600 sm:w-auto"
             >
               {editingJurusan ? 'Simpan Perubahan' : 'Tambah Jurusan'}
             </button>
@@ -222,7 +283,7 @@ export default function AdminJurusan() {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleEdit(jurusan)}
-                          className="flex-shrink-0 rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-200"
+                          className="flex-shrink-0 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-200"
                         >
                           Edit
                         </button>

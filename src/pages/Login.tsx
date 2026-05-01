@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { authAPI } from '../lib/api'
+import { authAPI, siswaAPI } from '../lib/api'
 import Footer from '../components/Footer'
 
 export default function Login() {
@@ -13,8 +13,8 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen flex-col bg-amber-50/40 text-slate-900">
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+      <header className="sticky top-0 z-[60] border-b border-slate-200 bg-white/80 backdrop-blur">
+        <div className="flex w-full items-center justify-between px-3 py-4 sm:px-6 lg:px-8">
           <a href="/" className="flex items-center gap-3">
             <img
               src="/logo.png"
@@ -31,14 +31,13 @@ export default function Login() {
           </a>
 
           <a href="/" className="text-sm font-semibold text-amber-700 hover:text-amber-800">
-            Kembali ke Home
+            Kembali ke Beranda
           </a>
         </div>
-        <div className="border-b border-slate-200" />
       </header>
 
       <main className="flex-1">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 lg:grid-cols-2 lg:items-center lg:py-20">
+        <div className="mx-auto grid w-full max-w-6xl gap-10 px-3 py-14 sm:px-4 lg:grid-cols-2 lg:items-center lg:py-20">
           <div className="text-center">
             <div className="inline-flex justify-center rounded-full bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-800">
               Halaman Login
@@ -73,11 +72,37 @@ export default function Login() {
                   console.log('Login response:', response)
                   
                   if (response.success && response.data) {
-                    // Simpan session
-                    localStorage.setItem('session', JSON.stringify(response.data.user))
+                    // Simpan session (use /auth/me to enrich user with kelas_id/relations)
+                    let userToStore = response.data.user
+                    try {
+                      const me = await authAPI.me()
+                      if (me.success && me.data) {
+                        const enriched = (me.data.user || me.data) as any
+                        userToStore = { ...userToStore, ...enriched }
+                      }
+                    } catch {
+                      // ignore: fallback to login payload
+                    }
+
+                    // Siswa often needs additional relations (kelas/jurusan) for display.
+                    // Try /siswa/me as an extra enrichment source.
+                    try {
+                      const roleGuess = userToStore?.role
+                      if (roleGuess === 'siswa') {
+                        const self = await siswaAPI.me()
+                        if (self.success && self.data) {
+                          const extra = (self.data.user || self.data) as any
+                          userToStore = { ...userToStore, ...extra }
+                        }
+                      }
+                    } catch {
+                      // ignore
+                    }
+
+                    localStorage.setItem('session', JSON.stringify(userToStore))
                     
                     // Navigate berdasarkan role
-                    const role = response.data.user.role
+                    const role = userToStore.role
                     console.log('User role:', role)
                     
                     if (role === 'guru') {
@@ -163,7 +188,7 @@ export default function Login() {
                 disabled={loading}
                 className="mt-2 inline-flex items-center justify-center rounded-xl bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Loading...' : 'Login'}
+                {loading ? 'Memuat...' : 'Masuk'}
               </button>
 
               <div className="mt-2 text-xs text-slate-500">

@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { siswaAPI, jurusanAPI } from '../../lib/api'
+import { siswaAPI, jurusanAPI, kelasAPI, formatApiErrorAlert } from '../../lib/api'
+import { Icon } from '../../components/ui/Icon'
+import ResponsiveSelect from '../../components/ui/ResponsiveSelect'
+
+function digitsOnly(value: string): string {
+  return String(value ?? '').replace(/\D+/g, '')
+}
 
 type Siswa = {
   id: string
@@ -7,8 +13,10 @@ type Siswa = {
   nama: string
   email: string
   kelas: string
+  tingkat_kelas?: string
+  kelas_id?: string
   jurusan_id: string
-  nama_jurusan?: string
+  nama_jurusan: string
 }
 
 type Jurusan = {
@@ -20,6 +28,7 @@ type Jurusan = {
 export default function AdminSiswa() {
   const [siswaList, setSiswaList] = useState<Siswa[]>([])
   const [jurusanList, setJurusanList] = useState<Jurusan[]>([])
+  const [kelasList, setKelasList] = useState<Array<{ id: string; nama: string }>>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingSiswa, setEditingSiswa] = useState<Siswa | null>(null)
@@ -29,7 +38,7 @@ export default function AdminSiswa() {
     nama: '',
     email: '',
     password: '',
-    kelas: 'X',
+    kelas_id: '',
     jurusan_id: ''
   })
 
@@ -39,18 +48,27 @@ export default function AdminSiswa() {
   useEffect(() => {
     const init = async () => {
       await loadJurusan()
-      await loadData()
+      await loadKelas()
     }
     init()
-  }, [filterKelas, filterJurusan])
+  }, [])
+
+  useEffect(() => {
+    const run = async () => {
+      await loadData()
+    }
+    run()
+  }, [filterKelas, filterJurusan, jurusanList])
 
   async function loadJurusan() {
     try {
       const response = await jurusanAPI.getAll()
-      if (response.success && Array.isArray(response.data)) {
-        setJurusanList(response.data)
-        if (response.data.length > 0 && !formData.jurusan_id) {
-          setFormData(prev => ({ ...prev, jurusan_id: response.data[0].id }))
+      if (response.success) {
+        const jurusanArr = response.data?.data || response.data
+        if (!Array.isArray(jurusanArr)) return
+        setJurusanList(jurusanArr)
+        if (jurusanArr.length > 0 && !formData.jurusan_id) {
+          setFormData(prev => ({ ...prev, jurusan_id: jurusanArr[0].id }))
         }
       }
     } catch (err) {
@@ -58,35 +76,92 @@ export default function AdminSiswa() {
     }
   }
 
+  async function loadKelas() {
+    try {
+      const response = await kelasAPI.getAll()
+      if (response.success) {
+        // Handle pagination format
+        const dataArray = response.data?.data || response.data
+        if (Array.isArray(dataArray)) {
+          setKelasList(dataArray)
+        }
+      }
+    } catch (err) {
+      console.error('Error loading kelas:', err)
+    }
+  }
+
   async function loadData() {
     try {
       setLoading(true)
-      const params: any = {}
-      if (filterKelas) params.kelas = filterKelas
-      if (filterJurusan) params.jurusan = filterJurusan
-      
-      const response = await siswaAPI.getAll(params)
-      if (response.success && Array.isArray(response.data)) {
-        // Normalize: mapping nama jurusan
-        const normalized = response.data.map((s: any) => {
-          // Mapping nama jurusan dari berbagai kemungkinan field
-          let namaJurusan = s.nama_jurusan || s.jurusan?.nama || s.jurusan?.nama_jurusan || s.jurusan?.name || ''
-          
-          // Kalau masih kosong, cari dari jurusanList berdasarkan jurusan_id
-          if (!namaJurusan && s.jurusan_id && jurusanList.length > 0) {
-            const jurusan = jurusanList.find(j => j.id === s.jurusan_id)
-            namaJurusan = jurusan ? (jurusan.nama_jurusan || jurusan.nama) : ''
-          }
-          
-          return {
-            ...s,
-            nama_jurusan: namaJurusan
-          }
-        })
-        setSiswaList(normalized)
+
+      // Fetch full list first; apply filter on FE to avoid backend param mismatch.
+      const response = await siswaAPI.getAll()
+      if (response.success) {
+        // Handle pagination
+        const dataArray = response.data?.data || response.data
+        
+        if (Array.isArray(dataArray)) {
+          // Normalize: extract string values from objects
+          const normalized = dataArray.map((s: any) => {
+            // Mapping nama jurusan dari berbagai kemungkinan field
+            let namaJurusan = s.nama_jurusan || s.jurusan?.nama || s.jurusan?.nama_jurusan || s.jurusan?.name || ''
+            
+            // Kalau masih kosong, cari dari jurusanList berdasarkan jurusan_id
+            if (!namaJurusan && s.jurusan_id && jurusanList.length > 0) {
+              const jurusan = jurusanList.find(j => j.id === s.jurusan_id)
+              namaJurusan = jurusan ? (jurusan.nama_jurusan || jurusan.nama) : ''
+            }
+            
+            // Extract kelas string (backend might send `kelas` as object: { id, nama, tingkat })
+            const kelasString =
+              (typeof s.kelas_relation?.nama === 'string' && s.kelas_relation.nama) ||
+              (typeof s.kelas === 'string' && s.kelas) ||
+              (typeof s.kelas?.nama === 'string' && s.kelas.nama) ||
+              (typeof s.kelas?.tingkat === 'string' && s.kelas.tingkat) ||
+              ''
+
+            const tingkatKelas =
+              (typeof s.kelas_relation?.tingkat === 'string' && s.kelas_relation.tingkat) ||
+              (typeof s.kelas?.tingkat === 'string' && s.kelas.tingkat) ||
+              (typeof s.kelas === 'string' && ['X', 'XI', 'XII', 'VII', 'VIII', 'IX'].includes(s.kelas.toUpperCase())
+                ? s.kelas.toUpperCase()
+                : '')
+            
+            return {
+              id: s.id,
+              nis: s.nis,
+              nama: s.nama,
+              email: s.email,
+              kelas: kelasString,
+              tingkat_kelas: tingkatKelas,
+              kelas_id: s.kelas_id,
+              jurusan_id: s.jurusan_id,
+              nama_jurusan: namaJurusan
+            }
+          })
+
+          const filtered = normalized.filter((s) => {
+            const kelasText = (s.kelas || '').toUpperCase()
+            const tingkatText = (s.tingkat_kelas || '').toUpperCase()
+
+            const matchKelas =
+              !filterKelas ||
+              tingkatText === filterKelas ||
+              kelasText === filterKelas ||
+              kelasText.startsWith(`${filterKelas} `)
+
+            const matchJurusan = !filterJurusan || String(s.jurusan_id || '') === String(filterJurusan)
+
+            return matchKelas && matchJurusan
+          })
+
+          setSiswaList(filtered)
+        }
       }
     } catch (error) {
       console.error('Error loading siswa:', error)
+      alert('Gagal memuat data siswa. Silakan coba lagi.')
     } finally {
       setLoading(false)
     }
@@ -94,39 +169,57 @@ export default function AdminSiswa() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    const nisClean = digitsOnly(formData.nis)
+    if (!nisClean) {
+      alert('NIS wajib diisi dengan angka saja.')
+      return
+    }
+
+    if (!formData.kelas_id || !formData.jurusan_id) {
+      alert('Kelas dan jurusan wajib dipilih.')
+      return
+    }
     
     try {
       if (editingSiswa) {
         const updateData: any = {
-          nis: formData.nis,
+          nis: nisClean,
           nama: formData.nama,
           email: formData.email,
-          kelas: formData.kelas,
+          kelas_id: formData.kelas_id,
           jurusan_id: formData.jurusan_id
         }
+        if (formData.password && formData.password.trim()) {
+          updateData.password = formData.password
+        }
+        console.log('Sending update data:', updateData)
         await siswaAPI.update(editingSiswa.id, updateData)
         alert('Data siswa berhasil diubah!')
+        resetForm()
+        await loadData()
       } else {
-        await siswaAPI.create(formData)
+        const createData = { ...formData, nis: nisClean }
+        console.log('Sending create data:', createData)
+        await siswaAPI.create(createData)
         alert('Siswa berhasil ditambahkan!')
+        resetForm()
+        await loadData()
       }
-      
-      resetForm()
-      await loadData()
     } catch (error) {
       console.error('Error saving siswa:', error)
-      alert('Gagal menyimpan data siswa.')
+      alert(formatApiErrorAlert('Gagal menyimpan data siswa.', error))
     }
   }
 
   function handleEdit(siswa: Siswa) {
     setEditingSiswa(siswa)
     setFormData({
-      nis: siswa.nis,
+      nis: digitsOnly(siswa.nis),
       nama: siswa.nama,
       email: siswa.email,
       password: '',
-      kelas: siswa.kelas,
+      kelas_id: siswa.kelas_id || '',
       jurusan_id: siswa.jurusan_id
     })
     setShowForm(true)
@@ -141,7 +234,7 @@ export default function AdminSiswa() {
       await loadData()
     } catch (error) {
       console.error('Error deleting siswa:', error)
-      alert('Gagal menghapus siswa.')
+      alert('Gagal menghapus siswa. Silakan coba lagi.')
     }
   }
 
@@ -151,7 +244,7 @@ export default function AdminSiswa() {
       nama: '',
       email: '',
       password: '',
-      kelas: 'X',
+      kelas_id: kelasList.length > 0 ? kelasList[0].id : '',
       jurusan_id: jurusanList.length > 0 ? jurusanList[0].id : ''
     })
     setEditingSiswa(null)
@@ -170,14 +263,16 @@ export default function AdminSiswa() {
     <div className="rounded-3xl bg-white p-4 sm:p-6 lg:p-7 shadow-sm ring-1 ring-slate-200">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="text-xs font-semibold tracking-wide text-slate-500">SISWA</div>
-          <h1 className="mt-2 text-xl sm:text-2xl font-extrabold tracking-tight text-slate-800">Kelola Siswa</h1>
+          <div className="inline-flex rounded-full bg-indigo-100 px-4 py-2 text-xs font-semibold text-indigo-800">
+            SISWA
+          </div>
+          <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">Kelola Siswa</h1>
           <p className="mt-2 text-sm text-slate-600">Admin bisa menambahkan dan mengelola data siswa.</p>
         </div>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="w-full sm:w-auto rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600"
+            className="w-full sm:w-auto rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
           >
             + Tambah Siswa
           </button>
@@ -186,29 +281,25 @@ export default function AdminSiswa() {
 
       {/* Filter */}
       <div className="mt-6 flex flex-wrap gap-3">
-        <select
+        <ResponsiveSelect
           value={filterKelas}
-          onChange={(e) => setFilterKelas(e.target.value)}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm outline-none focus:border-amber-400"
-        >
-          <option value="">Semua Kelas</option>
-          <option value="X">Kelas X</option>
-          <option value="XI">Kelas XI</option>
-          <option value="XII">Kelas XII</option>
-        </select>
+          onChange={setFilterKelas}
+          placeholder="Semua Kelas"
+          containerClassName="w-full sm:w-44"
+          options={[
+            { value: 'X', label: 'Kelas X' },
+            { value: 'XI', label: 'Kelas XI' },
+            { value: 'XII', label: 'Kelas XII' },
+          ]}
+        />
 
-        <select
+        <ResponsiveSelect
           value={filterJurusan}
-          onChange={(e) => setFilterJurusan(e.target.value)}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm outline-none focus:border-amber-400"
-        >
-          <option value="">Semua Jurusan</option>
-          {jurusanList.map((j) => (
-            <option key={j.id} value={j.id}>
-              {j.nama_jurusan || j.nama}
-            </option>
-          ))}
-        </select>
+          onChange={setFilterJurusan}
+          placeholder="Semua Jurusan"
+          containerClassName="w-full sm:w-56"
+          options={jurusanList.map((j) => ({ value: j.id, label: j.nama_jurusan || j.nama }))}
+        />
       </div>
 
       {showForm && (
@@ -221,8 +312,9 @@ export default function AdminSiswa() {
               type="button"
               onClick={resetForm}
               className="text-slate-400 hover:text-slate-600"
+              aria-label="Tutup"
             >
-              ✕
+              <Icon name="x" />
             </button>
           </div>
 
@@ -232,8 +324,10 @@ export default function AdminSiswa() {
                 <label className="mb-2 block text-sm font-semibold text-slate-700">NIS *</label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={formData.nis}
-                  onChange={(e) => setFormData({ ...formData, nis: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, nis: digitsOnly(e.target.value) })}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-400"
                   placeholder="1234567890"
                   required
@@ -284,33 +378,22 @@ export default function AdminSiswa() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-700">Kelas *</label>
-                <select
-                  value={formData.kelas}
-                  onChange={(e) => setFormData({ ...formData, kelas: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-400"
-                  required
-                >
-                  <option value="X">Kelas X</option>
-                  <option value="XI">Kelas XI</option>
-                  <option value="XII">Kelas XII</option>
-                </select>
+                <ResponsiveSelect
+                  value={formData.kelas_id}
+                  onChange={(value) => setFormData({ ...formData, kelas_id: value })}
+                  placeholder="Pilih Kelas"
+                  options={kelasList.map((k) => ({ value: k.id, label: String(k.nama || k.id) }))}
+                />
               </div>
 
               <div className="sm:col-span-1 lg:col-span-3">
                 <label className="mb-2 block text-sm font-semibold text-slate-700">Jurusan *</label>
-                <select
+                <ResponsiveSelect
                   value={formData.jurusan_id}
-                  onChange={(e) => setFormData({ ...formData, jurusan_id: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-400"
-                  required
-                >
-                  <option value="">Pilih Jurusan</option>
-                  {jurusanList.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.nama_jurusan || j.nama}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormData({ ...formData, jurusan_id: value })}
+                  placeholder="Pilih Jurusan"
+                  options={jurusanList.map((j) => ({ value: j.id, label: j.nama_jurusan || j.nama }))}
+                />
               </div>
             </div>
 
@@ -363,10 +446,10 @@ export default function AdminSiswa() {
                     <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
                       <span className="md:hidden">{siswa.email}</span>
                       <span className="sm:hidden inline-block rounded-full bg-blue-100 px-2 py-0.5 text-blue-700">
-                        {siswa.kelas}
+                        {siswa.kelas || '-'}
                       </span>
                       <span className="lg:hidden inline-block rounded-full bg-purple-100 px-2 py-0.5 text-purple-700">
-                        {siswa.nama_jurusan}
+                        {siswa.nama_jurusan || '-'}
                       </span>
                     </div>
                   </td>
@@ -375,19 +458,19 @@ export default function AdminSiswa() {
                   </td>
                   <td className="hidden sm:table-cell px-4 py-3 text-center">
                     <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                      {siswa.kelas}
+                      {siswa.kelas || '-'}
                     </span>
                   </td>
                   <td className="hidden lg:table-cell px-4 py-3 text-center">
                     <span className="inline-block rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
-                      {siswa.nama_jurusan}
+                      {siswa.nama_jurusan || '-'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2 overflow-x-auto">
                       <button
                         onClick={() => handleEdit(siswa)}
-                        className="flex-shrink-0 rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-200"
+                        className="flex-shrink-0 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-200"
                       >
                         Edit
                       </button>

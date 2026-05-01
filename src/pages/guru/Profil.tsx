@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getCurrentUser } from '../../lib/auth'
+import { getCurrentUser, patchSession } from '../../lib/auth'
 import { profileAPI } from '../../lib/api'
 
 export default function GuruProfil() {
@@ -23,9 +23,11 @@ export default function GuruProfil() {
     try {
       const response = await profileAPI.get()
       if (response.success && response.data) {
-        setProfile(response.data)
-        setNama(response.data.nama || '')
-        setEmail(response.data.email || '')
+        const namaValue = (response.data as any).nama ?? (response.data as any).name ?? ''
+        const emailValue = (response.data as any).email ?? ''
+        setProfile({ ...(response.data as any), nama: namaValue, email: emailValue })
+        setNama(namaValue)
+        setEmail(emailValue)
       }
     } catch (error) {
       console.error('Error loading profile:', error)
@@ -36,13 +38,18 @@ export default function GuruProfil() {
     e.preventDefault()
     
     try {
-      const response = await profileAPI.update({ nama })
+      const response = await profileAPI.update({ nama, email })
       
       if (response.success) {
         alert(response.message || 'Profil berhasil diubah')
+        const cleanedNama = nama.trim()
+        const cleanedEmail = email.trim()
+        patchSession({ nama: cleanedNama, email: cleanedEmail })
+        setProfile((prev: any) => ({ ...(prev ?? {}), nama: cleanedNama, email: cleanedEmail }))
+        setNama(cleanedNama)
+        setEmail(cleanedEmail)
         setIsEditingProfil(false)
         await loadProfile()
-        window.location.reload()
       } else {
         alert('Error: ' + response.message)
       }
@@ -157,7 +164,11 @@ export default function GuruProfil() {
               </button>
               <button
                 type="button"
-                onClick={() => setIsEditingProfil(false)}
+                onClick={() => {
+                  setIsEditingProfil(false)
+                  setNama(profile?.nama || '')
+                  setEmail(profile?.email || '')
+                }}
                 className="rounded-full border border-slate-300 px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Batal

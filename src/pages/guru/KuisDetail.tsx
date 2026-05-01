@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { kuisAPI } from '../../lib/api'
+import { kuisAPI, formatApiErrorAlert } from '../../lib/api'
+import ResponsiveSelect from '../../components/ui/ResponsiveSelect'
 
 type KuisStatus = 'Aktif' | 'Draft' | 'Selesai'
 type ChoiceKey = 'A' | 'B' | 'C' | 'D' | 'E'
@@ -23,6 +24,85 @@ type KuisItem = {
   status: KuisStatus
   peserta?: number  // Optional - backend might not return this
   soal: Question[]
+  batas_waktu?: number
+}
+
+type AttemptItem = {
+  id: string
+  siswa_id?: string | number
+  siswa_nama?: string
+  status?: string
+  started_at?: string
+  ends_at?: string
+  submitted_at?: string
+  retake_allowed?: boolean
+}
+
+function extractArrayFromPayload(value: any): any[] {
+  if (Array.isArray(value)) return value
+  if (!value || typeof value !== 'object') return []
+
+  const directKeys = ['data', 'items', 'results', 'rows', 'attempts', 'kuis_attempts']
+  for (const key of directKeys) {
+    const v = (value as any)[key]
+    if (Array.isArray(v)) return v
+  }
+
+  // Common Laravel resource / paginator wrappers
+  const data = (value as any).data
+  if (data && typeof data === 'object') {
+    if (Array.isArray((data as any).data)) return (data as any).data
+    for (const key of directKeys) {
+      const v = (data as any)[key]
+      if (Array.isArray(v)) return v
+      if (v && typeof v === 'object' && Array.isArray((v as any).data)) return (v as any).data
+    }
+  }
+
+  return []
+}
+
+function normalizeAttempts(payload: any): AttemptItem[] {
+  const raw = extractArrayFromPayload(payload)
+  if (!Array.isArray(raw) || raw.length === 0) return []
+
+  return raw
+    .filter(Boolean)
+    .map((a: any) => {
+      const attemptId = a?.id ?? a?.attempt_id ?? a?.attemptId
+      const siswaObj = a?.siswa
+      const siswa_nama =
+        typeof a?.siswa_nama === 'string'
+          ? a.siswa_nama
+          : typeof siswaObj?.nama === 'string'
+            ? siswaObj.nama
+            : undefined
+
+      return {
+        id: String(attemptId ?? ''),
+        siswa_id: a?.siswa_id ?? a?.user_id ?? a?.student_id ?? siswaObj?.id,
+        siswa_nama,
+        status: typeof a?.status === 'string' ? a.status : undefined,
+        started_at: a?.started_at ?? a?.waktu_mulai,
+        ends_at: a?.ends_at,
+        submitted_at: a?.submitted_at ?? a?.waktu_selesai,
+        retake_allowed: typeof a?.retake_allowed === 'boolean' ? a.retake_allowed : undefined,
+      } satisfies AttemptItem
+    })
+    .filter((a) => a.id)
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return '-'
+  const ms = Date.parse(String(value))
+  if (!Number.isFinite(ms)) return String(value)
+  return new Date(ms).toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export default function KuisDetail() {
@@ -30,15 +110,30 @@ export default function KuisDetail() {
   const { quizId } = useParams()
   const [quiz, setQuiz] = useState<KuisItem | null>(null)
   const [loading, setLoading] = useState(true)
+  const [attempts, setAttempts] = useState<AttemptItem[]>([])
+  const [attemptsLoading, setAttemptsLoading] = useState(false)
+  const [approvedRetakeIds, setApprovedRetakeIds] = useState<Record<string, boolean>>({})
   const [showAddForm, setShowAddForm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const submissionInProgress = useRef(false)
+  const approveInProgress = useRef(false)
   const [newQuestion, setNewQuestion] = useState({
     text: '',
     image: '',
     options: { A: '', B: '', C: '', D: '', E: '' },
     answer: 'A' as ChoiceKey
   })
+
+  const pesertaCount = useMemo(() => {
+    if (attempts.length === 0) return quiz?.peserta || 0
+    const withStudent = attempts.some((a) => a.siswa_id != null)
+    if (!withStudent) return attempts.length
+    const uniq = new Set<string>()
+    for (const a of attempts) {
+      if (a.siswa_id != null) uniq.add(String(a.siswa_id))
+    }
+    return uniq.size
+  }, [attempts, quiz])
 
   useEffect(() => {
     if (!quizId) {
@@ -60,7 +155,7 @@ export default function KuisDetail() {
         }
       } catch (error) {
         console.error('Error loading kuis:', error)
-        alert('Gagal memuat detail kuis')
+        alert('Gagal memuat detail kuis. Silakan coba lagi.')
         navigate('/guru/kuis')
       } finally {
         setLoading(false)
@@ -69,6 +164,67 @@ export default function KuisDetail() {
 
     fetchKuis()
   }, [quizId, navigate])
+
+  async function loadAttempts(quizIdValue: string) {
+    setAttemptsLoading(true)
+    try {
+      const res = await kuisAPI.listAttempts(quizIdValue)
+      // Use full response to support various wrappers: {success,data:[...]}, {data:{data:[...]}}, etc.
+      setAttempts(normalizeAttempts(res))
+    } catch (e: any) {
+      // 403 can happen if backend restricts attempt listing; show empty and continue.
+      console.error('Error loading attempts:', e)
+      setAttempts([])
+    } finally {
+      setAttemptsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!quizId) return
+    void loadAttempts(quizId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quizId])
+
+  const latestAttemptByStudent = useMemo(() => {
+    const map = new Map<string, AttemptItem>()
+    for (const a of attempts) {
+      const key = String(a.siswa_id ?? a.siswa_nama ?? a.id)
+      const prev = map.get(key)
+      if (!prev) {
+        map.set(key, a)
+        continue
+      }
+      const prevTs = Date.parse(String(prev.started_at ?? ''))
+      const nextTs = Date.parse(String(a.started_at ?? ''))
+      if (!Number.isFinite(prevTs) || (Number.isFinite(nextTs) && nextTs > prevTs)) {
+        map.set(key, a)
+      }
+    }
+    return Array.from(map.values()).sort((x, y) => {
+      const xt = Date.parse(String(x.started_at ?? ''))
+      const yt = Date.parse(String(y.started_at ?? ''))
+      if (Number.isFinite(xt) && Number.isFinite(yt)) return yt - xt
+      return String(y.id).localeCompare(String(x.id))
+    })
+  }, [attempts])
+
+  async function handleApproveRetake(attemptId: string) {
+    if (!quizId) return
+    if (approveInProgress.current) return
+    if (!confirm('Setujui siswa untuk mengulang kuis?')) return
+    approveInProgress.current = true
+    try {
+      await kuisAPI.approveRetake(quizId, attemptId)
+      setApprovedRetakeIds((prev) => ({ ...prev, [String(attemptId)]: true }))
+      alert('Retake disetujui. Siswa bisa klik Mulai lagi.')
+      await loadAttempts(quizId)
+    } catch (e: any) {
+      alert(formatApiErrorAlert('Gagal menyetujui retake.', e))
+    } finally {
+      approveInProgress.current = false
+    }
+  }
 
   async function handleStatusChange(newStatus: KuisStatus) {
     if (!quiz) return
@@ -81,7 +237,7 @@ export default function KuisDetail() {
       }
     } catch (error) {
       console.error('Error updating status:', error)
-      alert('Gagal mengubah status kuis')
+      alert(formatApiErrorAlert('Gagal mengubah status kuis.', error))
     }
   }
 
@@ -137,7 +293,7 @@ export default function KuisDetail() {
       alert('Soal berhasil ditambahkan!')
     } catch (error) {
       console.error('Error adding question:', error)
-      alert('Gagal menambahkan soal')
+      alert(formatApiErrorAlert('Gagal menambahkan soal.', error))
     } finally {
       setIsSubmitting(false)
       setTimeout(() => { submissionInProgress.current = false }, 100)
@@ -161,7 +317,7 @@ export default function KuisDetail() {
       alert('Soal berhasil dihapus!')
     } catch (error) {
       console.error('Error deleting question:', error)
-      alert('Gagal menghapus soal')
+      alert(formatApiErrorAlert('Gagal menghapus soal.', error))
     }
   }
 
@@ -209,23 +365,103 @@ export default function KuisDetail() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="text-xs font-semibold text-slate-500">Total Peserta</div>
-          <div className="mt-1 text-2xl font-extrabold text-slate-800">{quiz.peserta || 0}</div>
+          <div className="mt-1 text-2xl font-extrabold text-slate-800">{pesertaCount}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="text-xs font-semibold text-slate-500">Total Soal</div>
           <div className="mt-1 text-2xl font-extrabold text-slate-800">{quiz.soal?.length || 0}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="text-xs font-semibold text-slate-500">Durasi</div>
+          <div className="mt-1 text-2xl font-extrabold text-slate-800">{quiz.batas_waktu ?? 30} menit</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="text-xs font-semibold text-slate-500">Ubah Status</div>
-          <select
-            value={quiz.status}
-            onChange={(e) => handleStatusChange(e.target.value as KuisStatus)}
-            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-amber-400"
+          <div className="mt-1">
+            <ResponsiveSelect
+              value={quiz.status}
+              onChange={(value) => handleStatusChange(value as KuisStatus)}
+              placeholder="Pilih Status"
+              includeEmptyOption={false}
+              buttonClassName="rounded-lg px-3 py-2 font-semibold focus:border-amber-400"
+              options={[
+                { value: 'Draft', label: 'Draf' },
+                { value: 'Aktif', label: 'Aktif' },
+                { value: 'Selesai', label: 'Selesai' },
+              ]}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Attempt & Retake Approval */}
+      <div className="mt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <div className="text-lg font-extrabold text-slate-800">Attempt Siswa</div>
+            <div className="mt-1 text-sm text-slate-600">Gunakan tombol Approve Retake agar siswa bisa mengulang.</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => quizId && loadAttempts(quizId)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            disabled={attemptsLoading}
           >
-            <option value="Draft">Draft</option>
-            <option value="Aktif">Aktif</option>
-            <option value="Selesai">Selesai</option>
-          </select>
+            {attemptsLoading ? 'Memuat…' : 'Muat ulang'}
+          </button>
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+          <table className="w-full">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">Siswa</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">Mulai</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">Batas</th>
+                <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-600">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestAttemptByStudent.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-4 text-center text-sm text-slate-500">
+                    {attemptsLoading ? 'Memuat attempt…' : 'Belum ada attempt siswa.'}
+                  </td>
+                </tr>
+              ) : (
+                latestAttemptByStudent.map((a) => {
+                  const locallyApproved = approvedRetakeIds[String(a.id)] === true
+                  const canApprove = a.retake_allowed !== true && !locallyApproved
+                  return (
+                    <tr key={a.id} className="border-t border-slate-200">
+                      <td className="px-4 py-3 text-sm text-slate-800">
+                        <div className="font-semibold">{a.siswa_nama || `Siswa ${String(a.siswa_id ?? '-')}`}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{a.status || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{formatDateTime(a.started_at)}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{formatDateTime(a.ends_at)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleApproveRetake(a.id)}
+                          disabled={!canApprove}
+                          className={
+                            'rounded-lg px-3 py-1.5 text-xs font-semibold ' +
+                            (canApprove
+                              ? 'bg-amber-500 text-white hover:bg-amber-600'
+                              : 'cursor-not-allowed bg-slate-200 text-slate-600')
+                          }
+                        >
+                          {canApprove ? 'Approve Retake' : 'Sudah Di-approve'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -327,15 +563,14 @@ export default function KuisDetail() {
             {/* Jawaban Benar */}
             <div className="mb-4">
               <label className="mb-2 block text-sm font-semibold text-slate-700">Jawaban Benar *</label>
-              <select
+              <ResponsiveSelect
                 value={newQuestion.answer}
-                onChange={(e) => setNewQuestion({ ...newQuestion, answer: e.target.value as ChoiceKey })}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2 outline-none focus:border-amber-500"
-              >
-                {(['A', 'B', 'C', 'D', 'E'] as const).map((key) => (
-                  <option key={key} value={key}>{key}</option>
-                ))}
-              </select>
+                onChange={(value) => setNewQuestion({ ...newQuestion, answer: value as ChoiceKey })}
+                placeholder="Pilih Jawaban"
+                includeEmptyOption={false}
+                buttonClassName="rounded-lg border-slate-300 px-4 py-2 focus:border-amber-500"
+                options={(['A', 'B', 'C', 'D', 'E'] as const).map((key) => ({ value: key, label: key }))}
+              />
             </div>
 
             {/* Tombol Simpan */}

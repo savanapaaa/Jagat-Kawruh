@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { materiAPI, authAPI, kelasAPI } from '../../lib/api'
+import { useNavigate } from 'react-router-dom'
+import { materiAPI, authAPI, kelasAPI, formatApiErrorAlert } from '../../lib/api'
+import ResponsiveSelect from '../../components/ui/ResponsiveSelect'
 
-type MateriStatus = 'Dipublikasikan' | 'Draft'
+type MateriStatus = 'Published' | 'Draft'
 
 type MateriItem = {
   id: string
   judul: string
-  kelas: string
+  pesan_pembelajaran?: string
+  link_video?: string
+  kelas: any
+  kelas_ids?: Array<string | number>
+  kelas_list?: Array<{ id?: string | number; nama?: string; tingkat?: string }>
   status: MateriStatus
   file_path?: string
   file_name?: string
@@ -19,7 +25,10 @@ type Kelas = {
   tingkat: string
 }
 
+const MAX_MATERI_BYTES = 50 * 1024 * 1024
+
 export default function TeacherMateri() {
+  const navigate = useNavigate()
   const [items, setItems] = useState<MateriItem[]>([])
   const [showForm, setShowForm] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -27,6 +36,9 @@ export default function TeacherMateri() {
   const [kelas, setKelas] = useState('')
   const [kelasList, setKelasList] = useState<Kelas[]>([])
   const [status, setStatus] = useState<MateriStatus>('Draft')
+  const [pesanPembelajaran, setPesanPembelajaran] = useState('')
+  const [linkVideo, setLinkVideo] = useState('')
+  const [linkVideoError, setLinkVideoError] = useState<string | null>(null)
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -90,7 +102,7 @@ export default function TeacherMateri() {
                 tingkat: String(id)
               }))
               setKelasList(kelasFromIds)
-              if (!kelas) setKelas(kelasData[0])
+              if (!kelas) setKelas(String(kelasData[0]))
               return
             }
           }
@@ -135,24 +147,67 @@ export default function TeacherMateri() {
     }
   }
 
-  const canSubmit = useMemo(() => title.trim().length > 0 && !!pdfFile && !pdfError && !uploading, [title, pdfFile, pdfError, uploading])
+  function isValidHttpUrl(value: string): boolean {
+    const v = value.trim()
+    if (!v) return true
+    try {
+      const url = new URL(v)
+      return url.protocol === 'http:' || url.protocol === 'https:'
+    } catch {
+      return false
+    }
+  }
+
+  const canSubmit = useMemo(() => {
+    const hasTitle = title.trim().length > 0
+    const hasFile = !!pdfFile
+    const hasLink = linkVideo.trim().length > 0
+    const linkOk = isValidHttpUrl(linkVideo)
+    return hasTitle && (hasFile || hasLink) && linkOk && !pdfError && !linkVideoError && !uploading
+  }, [title, pdfFile, linkVideo, pdfError, linkVideoError, uploading])
+
+  function isAllowedMateriFile(file: File): boolean {
+    const name = file.name.toLowerCase()
+    const allowedExt = [
+      '.pdf',
+      '.doc',
+      '.docx',
+      '.ppt',
+      '.pptx',
+      '.xls',
+      '.xlsx',
+      '.zip',
+      '.rar',
+      '.png',
+      '.jpg',
+      '.jpeg',
+      '.webp',
+      '.mp4',
+    ]
+    return allowedExt.some((ext) => name.endsWith(ext))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!canSubmit || !pdfFile) return
+    if (!canSubmit) return
 
     setUploading(true)
     try {
       const response = await materiAPI.create({
         judul: title.trim(),
-        kelas: [kelas],
+        kelas_ids: [kelas],
         status: status,
-        file: pdfFile
+        file: pdfFile ?? undefined,
+        pesan_pembelajaran: pesanPembelajaran.trim(),
+        link_video: linkVideo.trim(),
       })
       if (response.success) {
         alert('Materi berhasil ditambahkan!')
         setTitle('')
+        setPesanPembelajaran('')
         setStatus('Draft')
+        setLinkVideo('')
+        setLinkVideoError(null)
         setPdfFile(null)
         setPdfError(null)
         setShowForm(false)
@@ -160,7 +215,7 @@ export default function TeacherMateri() {
       }
     } catch (error: any) {
       console.error('Error creating materi:', error)
-      alert(error.message || 'Gagal menambahkan materi')
+      alert(formatApiErrorAlert('Gagal menambahkan materi.', error))
     } finally {
       setUploading(false)
     }
@@ -176,7 +231,7 @@ export default function TeacherMateri() {
         }
       } catch (error) {
         console.error('Error deleting materi:', error)
-        alert('Gagal menghapus materi')
+        alert('Gagal menghapus materi. Silakan coba lagi.')
       }
     }
   }
@@ -186,7 +241,7 @@ export default function TeacherMateri() {
       await materiAPI.download(id)
     } catch (error) {
       console.error('Error downloading materi:', error)
-      alert('Gagal mengunduh file')
+      alert(error instanceof Error ? error.message : 'Gagal mengunduh file')
     }
   }
 
@@ -202,14 +257,16 @@ export default function TeacherMateri() {
     <div className="rounded-3xl bg-white p-4 sm:p-6 lg:p-7 shadow-sm ring-1 ring-slate-200">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="text-xs font-semibold tracking-wide text-slate-500">MATERI</div>
-          <h1 className="mt-2 text-xl sm:text-2xl font-extrabold tracking-tight text-slate-800">Kelola materi</h1>
-          <p className="mt-2 text-sm text-slate-600">Guru bisa menambahkan materi (PDF).</p>
+          <div className="inline-flex rounded-full bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-800">
+            Materi Guru
+          </div>
+          <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">Kelola materi</h1>
+          <p className="mt-2 text-sm text-slate-600">Guru bisa menambahkan materi (file).</p>
         </div>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="w-full sm:w-auto rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600"
+            className="w-full sm:w-auto rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
           >
             + Tambah Materi
           </button>
@@ -230,24 +287,30 @@ export default function TeacherMateri() {
               />
             </div>
 
+            <div className="md:col-span-3">
+              <label className="text-sm font-semibold text-slate-700">Pesan/Tata Cara Pembelajaran</label>
+              <textarea
+                value={pesanPembelajaran}
+                onChange={(e) => setPesanPembelajaran(e.target.value)}
+                rows={3}
+                placeholder="Contoh: Baca materi sampai selesai, lalu tulis ringkasan 1 paragraf sebelum mengerjakan tugas."
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 placeholder:text-slate-400 focus:border-amber-400"
+              />
+              <p className="mt-1 text-xs text-slate-500">Pesan ini akan muncul di halaman siswa sebagai arahan belajar.</p>
+            </div>
+
             <div>
               <label className="text-sm font-semibold text-slate-700">Kelas</label>
-              <select
-                value={kelas}
-                onChange={(e) => setKelas(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-amber-400"
-                required
-              >
-                {kelasList.length === 0 ? (
-                  <option value="">Tidak ada kelas yang diampu</option>
-                ) : (
-                  kelasList.map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {k.nama}
-                    </option>
-                  ))
-                )}
-              </select>
+              <div className="mt-2">
+                <ResponsiveSelect
+                  value={kelas}
+                  onChange={setKelas}
+                  placeholder={kelasList.length === 0 ? 'Tidak ada kelas yang diampu' : 'Pilih Kelas'}
+                  includeEmptyOption={false}
+                  disabled={kelasList.length === 0}
+                  options={kelasList.map((k) => ({ value: String(k.id), label: k.nama }))}
+                />
+              </div>
               {kelasList.length === 0 && (
                 <p className="mt-1 text-xs text-red-500">
                   Anda belum diamanahi kelas. Hubungi admin untuk menambahkan kelas.
@@ -258,21 +321,25 @@ export default function TeacherMateri() {
 
           <div className="mt-3 grid gap-3 md:grid-cols-3 md:items-end">
             <div className="md:col-span-2">
-              <label className="text-sm font-semibold text-slate-700">File PDF</label>
+              <label className="text-sm font-semibold text-slate-700">File Materi</label>
               <input
                 type="file"
-                accept="application/pdf,.pdf"
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.png,.jpg,.jpeg,.webp,.mp4"
                 onChange={(e) => {
                   const file = e.target.files?.[0] ?? null
                   if (!file) {
                     setPdfFile(null)
-                    setPdfError('Pilih file PDF.')
+                    setPdfError(null)
                     return
                   }
-                  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-                  if (!isPdf) {
+                  if (file.size > MAX_MATERI_BYTES) {
                     setPdfFile(null)
-                    setPdfError('File harus PDF.')
+                    setPdfError('Ukuran file terlalu besar. Maksimal 50MB.')
+                    return
+                  }
+                  if (!isAllowedMateriFile(file)) {
+                    setPdfFile(null)
+                    setPdfError('Format file belum didukung. Gunakan: pdf/docx/pptx/xlsx/zip/rar/jpg/png/mp4.')
                     return
                   }
                   setPdfFile(file)
@@ -283,39 +350,68 @@ export default function TeacherMateri() {
               <div className="mt-2 text-xs text-slate-500">
                 {pdfError ? <span className="font-semibold text-rose-600">{pdfError}</span> : pdfFile ? pdfFile.name : 'Belum ada file dipilih'}
               </div>
+              <div className="mt-1 text-[11px] text-slate-500">Pilih salah satu: upload file materi atau isi link video. (Rekomendasi: PDF untuk bisa dipreview/di-embed pada siswa.)</div>
+
+              <div className="mt-3">
+                <label className="text-sm font-semibold text-slate-700">Link Video (Opsional)</label>
+                <input
+                  value={linkVideo}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setLinkVideo(next)
+                    if (!isValidHttpUrl(next)) {
+                      setLinkVideoError('Link tidak valid. Gunakan format http:// atau https://')
+                      return
+                    }
+                    setLinkVideoError(null)
+                  }}
+                  type="url"
+                  placeholder="Contoh: https://youtube.com/watch?v=..."
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 placeholder:text-slate-400 focus:border-amber-400"
+                />
+                {linkVideoError ? <div className="mt-1 text-xs font-semibold text-rose-600">{linkVideoError}</div> : null}
+                <div className="mt-1 text-[11px] text-slate-500">Jika file video terlalu besar, gunakan link (YouTube/Drive/dll).</div>
+              </div>
             </div>
 
             <div>
               <label className="text-sm font-semibold text-slate-700">Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as MateriStatus)}
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-amber-400"
-              >
-                <option value="Draft">Draft</option>
-                <option value="Dipublikasikan">Dipublikasikan</option>
-              </select>
+              <div className="mt-2">
+                <ResponsiveSelect
+                  value={status}
+                  onChange={(value) => setStatus(value as MateriStatus)}
+                  placeholder="Pilih Status"
+                  includeEmptyOption={false}
+                  options={[
+                    { value: 'Draft', label: 'Draf' },
+                    { value: 'Published', label: 'Dipublikasikan' },
+                  ]}
+                />
+              </div>
             </div>
 
-            <div className="md:col-span-2">
-              <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="md:col-span-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => {
                     setShowForm(false)
                     setTitle('')
+                    setPesanPembelajaran('')
                     setStatus('Draft')
+                    setLinkVideo('')
+                    setLinkVideoError(null)
                     setPdfFile(null)
                     setPdfError(null)
                   }}
-                  className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  className="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-8 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={!canSubmit}
-                  className="flex-1 rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full sm:w-auto rounded-xl bg-amber-500 px-8 py-3 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {uploading ? 'Mengunggah...' : 'Simpan'}
                 </button>
@@ -348,35 +444,52 @@ export default function TeacherMateri() {
                 <tr key={item.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <div className="text-sm font-medium text-slate-800">{item.judul}</div>
+                    {item.pesan_pembelajaran && (
+                      <div className="mt-1 line-clamp-2 text-xs text-slate-500">{item.pesan_pembelajaran}</div>
+                    )}
                     <div className="mt-1 flex items-center gap-2 sm:hidden text-xs text-slate-500">
                       <span>{item.kelas}</span>
                       <span className="md:hidden">•</span>
-                      <span className="md:hidden">{item.file_name || 'No file'}</span>
+                      <span className="md:hidden">{item.file_name || 'Tidak ada file'}</span>
                     </div>
                   </td>
                   <td className="hidden sm:table-cell px-4 py-3 text-center text-sm text-slate-600">{item.kelas}</td>
                   <td className="px-4 py-3 text-center">
                     <span
                       className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${
-                        item.status === 'Dipublikasikan'
+                        item.status === 'Published'
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-slate-200 text-slate-700'
                       }`}
                     >
-                      {item.status}
+                      {item.status === 'Published' ? 'Dipublikasikan' : item.status === 'Draft' ? 'Draf' : item.status}
                     </span>
                   </td>
-                  <td className="hidden md:table-cell px-4 py-3 text-center text-xs text-slate-500">
-                    {item.file_name || 'No file'}
-                  </td>
+                  <td className="hidden md:table-cell px-4 py-3 text-center text-xs text-slate-500">{item.file_name || 'Tidak ada file'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2 overflow-x-auto">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/guru/materi/${item.id}`)}
+                        className="flex-shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        Detail
+                      </button>
+                      {item.link_video && (
+                        <button
+                          type="button"
+                          onClick={() => window.open(String(item.link_video), '_blank', 'noopener,noreferrer')}
+                          className="flex-shrink-0 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-200"
+                        >
+                          Buka Video
+                        </button>
+                      )}
                       {item.file_path && (
                         <button
                           onClick={() => handleDownload(item.id)}
                           className="flex-shrink-0 rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-200"
                         >
-                          Download
+                          Unduh
                         </button>
                       )}
                       <button
@@ -401,7 +514,7 @@ export default function TeacherMateri() {
             disabled={currentPage === 1}
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Prev
+            Sebelumnya
           </button>
           <div className="text-sm text-slate-600">
             Halaman {currentPage} dari {totalPages}
@@ -411,7 +524,7 @@ export default function TeacherMateri() {
             disabled={currentPage === totalPages}
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Next
+            Berikutnya
           </button>
         </div>
       )}

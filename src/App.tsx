@@ -21,7 +21,6 @@ import GuruKuisDetail from './pages/guru/KuisDetail'
 import GuruNilai from './pages/guru/Nilai'
 import GuruPBL from './pages/guru/PBL'
 import GuruProfil from './pages/guru/Profil'
-import GuruHelpdesk from './pages/guru/Helpdesk'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminGuru from './pages/admin/Guru'
@@ -95,7 +94,6 @@ function App() {
           <Route path="kuis/:quizId" element={<GuruKuisDetail />} />
           <Route path="pbl" element={<GuruPBL />} />
           <Route path="nilai" element={<GuruNilai />} />
-          <Route path="helpdesk" element={<GuruHelpdesk />} />
           <Route path="profil" element={<GuruProfil />} />
         </Route>
 

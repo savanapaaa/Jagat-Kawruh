@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { guruAPI, jurusanAPI, kelasAPI } from '../../lib/api'
+import { guruAPI, jurusanAPI, kelasAPI, formatApiErrorAlert } from '../../lib/api'
+import { Icon } from '../../components/ui/Icon'
+
+function digitsOnly(value: string): string {
+  return String(value ?? '').replace(/\D+/g, '')
+}
 
 type Guru = {
   id: string
@@ -38,7 +43,6 @@ export default function AdminGuru() {
     nama: '',
     email: '',
     password: '',
-    jurusan_id: '',
     kelas_diampu: [] as string[]
   })
 
@@ -47,14 +51,11 @@ export default function AdminGuru() {
       const response = await jurusanAPI.getAll()
       if (response.success && response.data && Array.isArray(response.data)) {
         setJurusanList(response.data)
-        if (response.data.length > 0 && !formData.jurusan_id) {
-          setFormData(prev => ({ ...prev, jurusan_id: response.data![0].id }))
-        }
       }
     } catch (err) {
       console.error('Error loading jurusan:', err)
     }
-  }, [formData.jurusan_id])
+  }, [])
 
   async function loadKelas() {
     try {
@@ -75,9 +76,21 @@ export default function AdminGuru() {
   async function loadData() {
     try {
       setLoading(true)
+      
+      // Pastikan jurusan sudah di-load
+      let jurusanData = jurusanList
+      if (jurusanData.length === 0) {
+        const jurusanResponse = await jurusanAPI.getAll()
+        if (jurusanResponse.success && jurusanResponse.data) {
+          jurusanData = jurusanResponse.data
+          setJurusanList(jurusanData)
+        }
+      }
+      
       const response = await guruAPI.getAll()
       console.log('Response dari backend:', response)
       console.log('response.data:', response.data)
+      console.log('jurusanData:', jurusanData)
       
       // Kemungkinan response.data adalah object dengan property 'data' (pagination)
       if (response.success) {
@@ -91,10 +104,11 @@ export default function AdminGuru() {
             // Mapping nama jurusan dari berbagai kemungkinan field
             let namaJurusan = g.nama_jurusan || g.jurusan?.nama || g.jurusan?.nama_jurusan || g.jurusan?.name || ''
             
-            // Kalau masih kosong, cari dari jurusanList berdasarkan jurusan_id
-            if (!namaJurusan && g.jurusan_id && jurusanList.length > 0) {
-              const jurusan = jurusanList.find(j => j.id === g.jurusan_id)
+            // Kalau masih kosong, cari dari jurusanData berdasarkan jurusan_id
+            if (!namaJurusan && g.jurusan_id && jurusanData.length > 0) {
+              const jurusan = jurusanData.find(j => String(j.id) === String(g.jurusan_id))
               namaJurusan = jurusan ? (jurusan.nama_jurusan || jurusan.nama) : ''
+              console.log(`Mapping jurusan_id ${g.jurusan_id} -> ${namaJurusan}`)
             }
             
             return {
@@ -104,6 +118,7 @@ export default function AdminGuru() {
               kelas_diampu: g.kelas_diampu || []
             }
           })
+          console.log('Normalized guru list:', normalized)
           setGuruList(normalized)
         } else if (Array.isArray(response.data)) {
           const normalized = response.data.map((g: any) => {
@@ -126,7 +141,7 @@ export default function AdminGuru() {
       }
     } catch (error) {
       console.error('Error loading guru:', error)
-      alert('Gagal memuat data guru.')
+      alert('Gagal memuat data guru. Silakan coba lagi.')
     } finally {
       setLoading(false)
     }
@@ -144,22 +159,26 @@ export default function AdminGuru() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    const nipClean = digitsOnly(formData.nip)
+    if (!nipClean) {
+      alert('NIP wajib diisi dengan angka saja.')
+      return
+    }
     
     try {
       if (editingGuru) {
         // Update - Convert kelas_diampu to integers
         const updateData: {
           nip: string
-          name: string
+          nama: string
           email: string
-          jurusan_id: number
           kelas_diampu: number[]
           password?: string
         } = {
-          nip: formData.nip,
-          name: formData.nama,
+          nip: nipClean,
+          nama: formData.nama,
           email: formData.email,
-          jurusan_id: Number(formData.jurusan_id),
           kelas_diampu: formData.kelas_diampu.map(id => Number(id))
         }
         if (formData.password) {
@@ -169,38 +188,41 @@ export default function AdminGuru() {
         const response = await guruAPI.update(editingGuru.id, updateData)
         console.log('Update response:', response)
         alert('Guru berhasil diperbarui!')
+        resetForm()
+        // Reload jurusan and data untuk refresh nama jurusan
+        await loadJurusan()
+        await loadData()
       } else {
         // Create - Convert kelas_diampu to integers
         const createData = {
-          nip: formData.nip,
-          name: formData.nama,
+          nip: nipClean,
+          nama: formData.nama,
           email: formData.email,
           password: formData.password,
-          jurusan_id: Number(formData.jurusan_id),
           kelas_diampu: formData.kelas_diampu.map(id => Number(id))
         }
         console.log('Sending create data:', createData)
         const response = await guruAPI.create(createData)
         console.log('Create response:', response)
         alert('Guru berhasil ditambahkan!')
+        resetForm()
+        // Reload jurusan and data
+        await loadJurusan()
+        await loadData()
       }
-      
-      resetForm()
-      await loadData()
     } catch (error) {
       console.error('Error saving guru:', error)
-      alert('Gagal menyimpan data guru.')
+      alert(formatApiErrorAlert('Gagal menyimpan data guru.', error))
     }
   }
 
   function handleEdit(guru: Guru) {
     setEditingGuru(guru)
     setFormData({
-      nip: guru.nip,
+      nip: digitsOnly(guru.nip),
       nama: guru.nama || guru.name || '',
       email: guru.email,
       password: '',
-      jurusan_id: guru.jurusan_id,
       kelas_diampu: guru.kelas_diampu || []
     })
     setShowForm(true)
@@ -215,7 +237,7 @@ export default function AdminGuru() {
       await loadData()
     } catch (error) {
       console.error('Error deleting guru:', error)
-      alert('Gagal menghapus guru.')
+      alert('Gagal menghapus guru. Silakan coba lagi.')
     }
   }
 
@@ -225,7 +247,6 @@ export default function AdminGuru() {
       nama: '',
       email: '',
       password: '',
-      jurusan_id: jurusanList.length > 0 ? jurusanList[0].id : '',
       kelas_diampu: []
     })
     setEditingGuru(null)
@@ -244,14 +265,16 @@ export default function AdminGuru() {
     <div className="rounded-3xl bg-white p-4 sm:p-6 lg:p-7 shadow-sm ring-1 ring-slate-200">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="text-xs font-semibold tracking-wide text-slate-500">GURU</div>
-          <h1 className="mt-2 text-xl sm:text-2xl font-extrabold tracking-tight text-slate-800">Kelola Guru</h1>
+          <div className="inline-flex rounded-full bg-indigo-100 px-4 py-2 text-xs font-semibold text-indigo-800">
+            GURU
+          </div>
+          <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">Kelola Guru</h1>
           <p className="mt-2 text-sm text-slate-600">Admin bisa menambahkan dan mengelola data guru.</p>
         </div>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="w-full sm:w-auto rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600"
+            className="w-full sm:w-auto rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600"
           >
             + Tambah Guru
           </button>
@@ -268,8 +291,9 @@ export default function AdminGuru() {
               type="button"
               onClick={resetForm}
               className="text-slate-400 hover:text-slate-600"
+              aria-label="Tutup"
             >
-              ✕
+              <Icon name="x" />
             </button>
           </div>
 
@@ -279,8 +303,10 @@ export default function AdminGuru() {
                 <label className="mb-2 block text-sm font-semibold text-slate-700">NIP *</label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={formData.nip}
-                  onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, nip: digitsOnly(e.target.value) })}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-400"
                   placeholder="198501012010011001"
                   required
@@ -329,25 +355,8 @@ export default function AdminGuru() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">Jurusan *</label>
-              <select
-                value={formData.jurusan_id}
-                onChange={(e) => setFormData({ ...formData, jurusan_id: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-400"
-                required
-              >
-                <option value="">Pilih Jurusan</option>
-                {jurusanList.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.nama_jurusan || j.nama}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700">
-                Kelas yang Diampu
+                Kelas yang Diampu *
               </label>
               <div className="rounded-xl border border-slate-200 bg-white p-4 max-h-60 overflow-y-auto">
                 {kelasList.length === 0 ? (
@@ -399,7 +408,7 @@ export default function AdminGuru() {
               </button>
               <button
                 type="submit"
-                className="w-full rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 sm:w-auto"
+                className="w-full rounded-xl bg-amber-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-amber-600 sm:w-auto"
               >
                 {editingGuru ? 'Simpan Perubahan' : 'Tambah Guru'}
               </button>
@@ -415,14 +424,13 @@ export default function AdminGuru() {
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">NIP</th>
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">Nama</th>
               <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">Email</th>
-              <th className="hidden sm:table-cell px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-600">Jurusan</th>
               <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-600">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {guruList.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500">
                   Belum ada data guru. Klik "Tambah Guru" untuk membuat.
                 </td>
               </tr>
@@ -430,28 +438,28 @@ export default function AdminGuru() {
               guruList.map((guru) => (
                 <tr key={guru.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
-                    <div className="text-sm font-medium text-slate-800">{guru.nip}</div>
+                    <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                      {guru.nip}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-sm font-semibold text-slate-800">{guru.nama}</div>
-                    <div className="mt-1 flex flex-col gap-1 text-xs text-slate-500 md:hidden">
-                      <span>{guru.email}</span>
-                      <span className="sm:hidden">{guru.nama_jurusan}</span>
+                    <div className="mt-1 text-xs text-slate-500 md:hidden">
+                      <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                        {guru.email}
+                      </span>
                     </div>
                   </td>
                   <td className="hidden md:table-cell px-4 py-3 text-sm text-slate-600">
-                    {guru.email}
-                  </td>
-                  <td className="hidden sm:table-cell px-4 py-3 text-center">
                     <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                      {guru.nama_jurusan}
+                      {guru.email}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2 overflow-x-auto">
                       <button
                         onClick={() => handleEdit(guru)}
-                        className="flex-shrink-0 rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-200"
+                        className="flex-shrink-0 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-200"
                       >
                         Edit
                       </button>

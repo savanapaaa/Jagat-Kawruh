@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { getCurrentUser } from '../../lib/auth'
-import { profileAPI } from '../../lib/api'
+import { getCurrentUser, patchSession } from '../../lib/auth'
+import { profileAPI, siswaAPI } from '../../lib/api'
 
 export default function SiswaProfil() {
   const user = getCurrentUser()
   const [isEditingProfil, setIsEditingProfil] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+
+  const [profile, setProfile] = useState<any>(null)
 
   const [nama, setNama] = useState('')
   const [email, setEmail] = useState('')
@@ -22,8 +24,36 @@ export default function SiswaProfil() {
     try {
       const response = await profileAPI.get()
       if (response.success && response.data) {
-        setNama(response.data.nama || '')
-        setEmail(response.data.email || '')
+        const namaValue = (response.data as any).nama ?? (response.data as any).name ?? ''
+        const emailValue = (response.data as any).email ?? ''
+        setProfile({ ...(response.data as any), nama: namaValue, email: emailValue })
+        setNama(namaValue)
+        setEmail(emailValue)
+      }
+
+      // If session doesn't include jurusan yet, try to enrich from /siswa/me.
+      // This avoids requiring relogin just to display Jurusan.
+      if (!user?.jurusan) {
+        try {
+          const selfRes = await siswaAPI.me()
+          if (selfRes.success && selfRes.data) {
+            const s: any = selfRes.data.user || selfRes.data
+            const jurusanName =
+              (typeof s.jurusan === 'string' && s.jurusan) ||
+              (typeof s.jurusan_name === 'string' && s.jurusan_name) ||
+              (typeof s.jurusan_relation?.nama === 'string' && s.jurusan_relation.nama) ||
+              (typeof s.jurusan?.nama === 'string' && s.jurusan.nama) ||
+              (typeof s.jurusan?.name === 'string' && s.jurusan.name) ||
+              ''
+
+            if (jurusanName) {
+              patchSession({ jurusan: jurusanName })
+              setProfile((prev: any) => ({ ...(prev ?? {}), jurusan_name: jurusanName }))
+            }
+          }
+        } catch {
+          // ignore
+        }
       }
     } catch (error) {
       console.error('Error loading profile:', error)
@@ -34,13 +64,18 @@ export default function SiswaProfil() {
     e.preventDefault()
     
     try {
-      const response = await profileAPI.update({ nama })
+      const response = await profileAPI.update({ nama, email })
       
       if (response.success) {
         alert(response.message || 'Profil berhasil diubah')
+        const cleanedNama = nama.trim()
+        const cleanedEmail = email.trim()
+        patchSession({ nama: cleanedNama, email: cleanedEmail })
+        setProfile((prev: any) => ({ ...(prev ?? {}), nama: cleanedNama, email: cleanedEmail }))
+        setNama(cleanedNama)
+        setEmail(cleanedEmail)
         setIsEditingProfil(false)
         await loadProfile()
-        window.location.reload()
       } else {
         alert('Error: ' + response.message)
       }
@@ -100,7 +135,7 @@ export default function SiswaProfil() {
           {!isEditingProfil && (
             <button
               onClick={() => setIsEditingProfil(true)}
-              className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-600"
+              className="rounded-full bg-amber-500 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-600"
             >
               Edit Profil
             </button>
@@ -111,19 +146,21 @@ export default function SiswaProfil() {
           <div className="mt-6 space-y-4">
             <div>
               <div className="text-xs font-semibold text-slate-500">Nama Lengkap</div>
-              <div className="mt-1 text-sm text-slate-800">{user?.nama || '-'}</div>
+              <div className="mt-1 text-sm text-slate-800">{profile?.nama || user?.nama || '-'}</div>
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-500">Email</div>
-              <div className="mt-1 text-sm text-slate-800">{user?.email || '-'}</div>
+              <div className="mt-1 text-sm text-slate-800">{profile?.email || user?.email || '-'}</div>
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-500">Kelas</div>
-              <div className="mt-1 text-sm text-slate-800">{user?.kelas || '-'}</div>
+              <div className="mt-1 text-sm text-slate-800">{user?.kelas || profile?.kelas || '-'}</div>
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-500">Jurusan</div>
-              <div className="mt-1 text-sm text-slate-800">{user?.jurusan || '-'}</div>
+              <div className="mt-1 text-sm text-slate-800">
+                {user?.jurusan || profile?.jurusan?.nama || profile?.jurusan?.name || profile?.jurusan_name || '-'}
+              </div>
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-500">Role</div>
@@ -157,13 +194,17 @@ export default function SiswaProfil() {
             <div className="flex gap-3">
               <button
                 type="submit"
-                className="rounded-full bg-emerald-500 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
+                className="rounded-full bg-amber-500 px-6 py-2 text-sm font-semibold text-white hover:bg-amber-600"
               >
                 Simpan Perubahan
               </button>
               <button
                 type="button"
-                onClick={() => setIsEditingProfil(false)}
+                onClick={() => {
+                  setIsEditingProfil(false)
+                  setNama(profile?.nama || '')
+                  setEmail(profile?.email || '')
+                }}
                 className="rounded-full border border-slate-300 px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Batal
