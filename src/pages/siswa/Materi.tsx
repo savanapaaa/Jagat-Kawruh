@@ -202,7 +202,6 @@ export default function Materi() {
   const [submissionByMateriId, setSubmissionByMateriId] = useState<Record<string, MateriSubmission | null | undefined>>({})
   const [submissionLoadingByMateriId, setSubmissionLoadingByMateriId] = useState<Record<string, boolean | undefined>>({})
   const [fileByMateriId, setFileByMateriId] = useState<Record<string, File | null | undefined>>({})
-  const [catatanByMateriId, setCatatanByMateriId] = useState<Record<string, string | undefined>>({})
   const [submittingByMateriId, setSubmittingByMateriId] = useState<Record<string, boolean | undefined>>({})
   const [previewUrlByMateriId, setPreviewUrlByMateriId] = useState<Record<string, string | undefined>>({})
   const [previewLoadingByMateriId, setPreviewLoadingByMateriId] = useState<Record<string, boolean | undefined>>({})
@@ -563,8 +562,7 @@ export default function Materi() {
 
     try {
       setSubmittingByMateriId((prev) => ({ ...prev, [materiId]: true }))
-      const catatan = catatanByMateriId[materiId]
-      const res = await materiAPI.submitTugas(materiId, { file, catatan })
+      const res = await materiAPI.submitTugas(materiId, { file })
       if (!res.success) {
         alert(res.message || 'Gagal mengumpulkan tugas')
         return

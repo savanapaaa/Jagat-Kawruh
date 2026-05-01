@@ -1301,7 +1301,7 @@ export const nilaiAPI = {
     return apiCall<any>(`/nilai/kelas/${kelas}`)
   },
 
-  async fetchExportBlob(params?: { type?: 'all' | 'kuis' | 'pbl'; siswa_id?: string; kelas?: string; kelas_id?: string }): Promise<{ blob: Blob; filename: string }> {
+  async fetchExportBlob(params?: { type?: 'all' | 'kuis' | 'pbl' | 'materi'; siswa_id?: string; kelas?: string; kelas_id?: string }): Promise<{ blob: Blob; filename: string }> {
     const token = getToken()
     const url = `${API_BASE_URL}/nilai/export${toQueryString(params as any)}`
 
@@ -1361,7 +1361,7 @@ export const nilaiAPI = {
     return { blob, filename }
   },
 
-  async downloadExport(params?: { type?: 'all' | 'kuis' | 'pbl'; siswa_id?: string; kelas?: string; kelas_id?: string }) {
+  async downloadExport(params?: { type?: 'all' | 'kuis' | 'pbl' | 'materi'; siswa_id?: string; kelas?: string; kelas_id?: string }) {
     const { blob, filename } = await this.fetchExportBlob(params)
     const objectUrl = URL.createObjectURL(blob)
     try {

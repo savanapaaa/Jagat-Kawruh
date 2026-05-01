@@ -43,7 +43,6 @@ export default function MateriDetail() {
   const [submissionsError, setSubmissionsError] = useState<string | null>(null)
   const [savingBySubmissionId, setSavingBySubmissionId] = useState<Record<string, boolean | undefined>>({})
   const [nilaiBySubmissionId, setNilaiBySubmissionId] = useState<Record<string, string | undefined>>({})
-  const [feedbackBySubmissionId, setFeedbackBySubmissionId] = useState<Record<string, string | undefined>>({})
 
   useEffect(() => {
     loadMateri()
