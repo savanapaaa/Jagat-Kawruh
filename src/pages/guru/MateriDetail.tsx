@@ -189,13 +189,7 @@ export default function MateriDetail() {
         }
         return next
       })
-      setFeedbackBySubmissionId((prev) => {
-        const next = { ...prev }
-        for (const s of normalized) {
-          if (next[s.id] == null) next[s.id] = s.feedback ?? ''
-        }
-        return next
-      })
+
     } catch (error: any) {
       console.error('Error loading submissions:', error)
       setSubmissions([])
