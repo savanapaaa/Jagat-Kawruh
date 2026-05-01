@@ -4,7 +4,7 @@ import ResponsiveSelect from '../../components/ui/ResponsiveSelect'
 
 type KelasOption = { id: string; nama: string; tingkat?: string }
 
-type NilaiTypeFilter = 'all' | 'kuis' | 'pbl'
+type NilaiTypeFilter = 'all' | 'kuis' | 'pbl' | 'materi'
 
 export default function TeacherNilai() {
   const [nilai, setNilai] = useState<any[]>([])
@@ -158,42 +158,42 @@ export default function TeacherNilai() {
     if (missing.length === 0) return
 
     let cancelled = false
-    ;(async () => {
-      const nextMap: Record<string, { nama_kelompok?: string; anggota?: Array<string | number> }> = {}
+      ; (async () => {
+        const nextMap: Record<string, { nama_kelompok?: string; anggota?: Array<string | number> }> = {}
 
-      for (const projectId of missing) {
-        try {
-          const res = await pblAPI.getKelompok(projectId)
-          if (!res?.success) {
-            loadedKelompokProjectIds.current.add(projectId)
-            continue
-          }
-          const list: any[] = Array.isArray((res as any)?.data)
-            ? (res as any).data
-            : Array.isArray((res as any)?.data?.data)
-              ? (res as any).data.data
-              : []
-
-          for (const k of list) {
-            const id = k?.id != null ? String(k.id) : ''
-            if (!id) continue
-            nextMap[id] = {
-              nama_kelompok: k?.nama_kelompok != null ? String(k.nama_kelompok) : undefined,
-              anggota: Array.isArray(k?.anggota) ? (k.anggota as Array<string | number>) : undefined,
+        for (const projectId of missing) {
+          try {
+            const res = await pblAPI.getKelompok(projectId)
+            if (!res?.success) {
+              loadedKelompokProjectIds.current.add(projectId)
+              continue
             }
+            const list: any[] = Array.isArray((res as any)?.data)
+              ? (res as any).data
+              : Array.isArray((res as any)?.data?.data)
+                ? (res as any).data.data
+                : []
+
+            for (const k of list) {
+              const id = k?.id != null ? String(k.id) : ''
+              if (!id) continue
+              nextMap[id] = {
+                nama_kelompok: k?.nama_kelompok != null ? String(k.nama_kelompok) : undefined,
+                anggota: Array.isArray(k?.anggota) ? (k.anggota as Array<string | number>) : undefined,
+              }
+            }
+
+            loadedKelompokProjectIds.current.add(projectId)
+          } catch {
+            loadedKelompokProjectIds.current.add(projectId)
           }
-
-          loadedKelompokProjectIds.current.add(projectId)
-        } catch {
-          loadedKelompokProjectIds.current.add(projectId)
         }
-      }
 
-      if (cancelled) return
-      if (Object.keys(nextMap).length > 0) {
-        setKelompokById((prev) => ({ ...prev, ...nextMap }))
-      }
-    })()
+        if (cancelled) return
+        if (Object.keys(nextMap).length > 0) {
+          setKelompokById((prev) => ({ ...prev, ...nextMap }))
+        }
+      })()
 
     return () => {
       cancelled = true
@@ -208,7 +208,7 @@ export default function TeacherNilai() {
       const response = useLegacyGradeEndpoint
         ? await nilaiAPI.getNilaiByKelas(filterKelas)
         : await nilaiAPI.getNilai({ type: filterType })
-      
+
       if (response.success) {
         const data: any = (response as any).data
         const list =
@@ -216,8 +216,13 @@ export default function TeacherNilai() {
             ? data
             : Array.isArray(data?.data)
               ? data.data
-              : Array.isArray(data?.kuis) || Array.isArray(data?.pbl)
-                ? [...(Array.isArray(data?.kuis) ? data.kuis : []), ...(Array.isArray(data?.pbl) ? data.pbl : [])]
+              : Array.isArray(data?.kuis) || Array.isArray(data?.pbl) || Array.isArray(data?.materi) || Array.isArray(data?.tugas)
+                ? [
+                    ...(Array.isArray(data?.kuis) ? data.kuis : []), 
+                    ...(Array.isArray(data?.pbl) ? data.pbl : []),
+                    ...(Array.isArray(data?.materi) ? data.materi : []),
+                    ...(Array.isArray(data?.tugas) ? data.tugas : [])
+                  ]
                 : []
         if (Array.isArray(list)) {
           setRawNilai(list)
@@ -246,7 +251,7 @@ export default function TeacherNilai() {
     try {
       setExporting(true)
 
-      const params: { type?: 'all' | 'kuis' | 'pbl'; kelas?: string; kelas_id?: string } = {
+      const params: { type?: 'all' | 'kuis' | 'pbl' | 'materi'; kelas?: string; kelas_id?: string } = {
         type: filterType,
       }
 
@@ -365,7 +370,7 @@ export default function TeacherNilai() {
             Nilai Guru
           </div>
           <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">Rekap nilai</h1>
-          <p className="mt-2 text-sm text-slate-600">Nilai kuis dan PBL siswa dari backend</p>
+          <p className="mt-2 text-sm text-slate-600">Nilai kuis dan PBL siswa</p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <ResponsiveSelect
@@ -378,6 +383,7 @@ export default function TeacherNilai() {
               { value: 'all', label: 'Semua' },
               { value: 'kuis', label: 'Kuis' },
               { value: 'pbl', label: 'PBL' },
+              { value: 'materi', label: 'Materi/Tugas' },
             ]}
           />
 
@@ -391,10 +397,10 @@ export default function TeacherNilai() {
               kelasOptions.length > 0
                 ? kelasOptions.map((k) => ({ value: `${k.id}::${k.nama}`, label: k.nama }))
                 : [
-                    { value: 'X', label: 'X' },
-                    { value: 'XI', label: 'XI' },
-                    { value: 'XII', label: 'XII' },
-                  ]
+                  { value: 'X', label: 'X' },
+                  { value: 'XI', label: 'XI' },
+                  { value: 'XII', label: 'XII' },
+                ]
             }
           />
 
@@ -461,12 +467,14 @@ export default function TeacherNilai() {
                   <td className="px-4 py-3 text-slate-700">
                     {n.project_id || n.project_judul ? (
                       <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-800">PBL</span>
+                    ) : n.materi_id || n.materi_judul ? (
+                      <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800">Materi</span>
                     ) : (
                       <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">Kuis</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-slate-700">
-                    {n.judul_kuis || n.kuis_judul || n.kuis || n.project_judul || n.judul || '-'}
+                    {n.judul_kuis || n.kuis_judul || n.kuis || n.project_judul || n.materi_judul || n.materi || n.judul || '-'}
                   </td>
                   <td className="px-4 py-3 text-slate-700">
                     {(() => {
