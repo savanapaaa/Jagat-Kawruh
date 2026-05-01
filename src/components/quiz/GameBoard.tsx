@@ -423,19 +423,21 @@ export function GameBoard({
         </div>
       </div>
 
-      <div className="game-board">
-        {MAP_LAYOUT.map((row, y) => (
-          <div key={y} className="board-row">
-            {row.map((_, x) => (
-              <div
-                key={`${x}-${y}`}
-                className={getCellClass(x, y)}
-              >
-                <span className="cell-content">{getCellContent(x, y)}</span>
-              </div>
-            ))}
-          </div>
-        ))}
+      <div className="game-board-wrapper">
+        <div className="game-board">
+          {MAP_LAYOUT.map((row, y) => (
+            <div key={y} className="board-row">
+              {row.map((_, x) => (
+                <div
+                  key={`${x}-${y}`}
+                  className={getCellClass(x, y)}
+                >
+                  <span className="cell-content">{getCellContent(x, y)}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Mobile D-pad Controls */}
@@ -582,10 +584,20 @@ export function GameBoard({
           display: none;
         }
 
+        .game-board-container.fullscreen .game-board-wrapper {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+        }
+
         .game-board-container.fullscreen .game-board {
-          width: min(calc(100% - 8px), var(--jk-board-max));
-          max-width: min(calc(100% - 8px), var(--jk-board-max));
-          align-self: center;
+          height: 100%;
+          max-height: 100%;
+          width: auto;
+          max-width: 100%;
         }
 
         .game-board-container.fullscreen-mobile .dpad-container {
@@ -630,6 +642,13 @@ export function GameBoard({
           text-align: center;
         }
 
+        .game-board-wrapper {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+        }
+
         .game-board {
           display: grid;
           gap: 2px;
@@ -639,6 +658,7 @@ export function GameBoard({
           border-radius: 0.5rem;
           margin: 0 auto;
           width: min(calc(100% - 8px), var(--jk-board-max));
+          max-width: 100%;
           aspect-ratio: 1;
         }
 
