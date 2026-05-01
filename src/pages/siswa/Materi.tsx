@@ -789,40 +789,23 @@ export default function Materi() {
 
                   {submissionByMateriId[m.id] && (
                     <div className="mt-2 text-xs text-slate-600">
-                      <span className="font-semibold">Nilai:</span>{' '}
-                      {typeof submissionByMateriId[m.id]!.nilai === 'number' ? submissionByMateriId[m.id]!.nilai : 'Belum dinilai'}
-                      {submissionByMateriId[m.id]!.feedback ? (
-                        <span>
-                          {' '}
-                          • <span className="font-semibold">Feedback:</span> {submissionByMateriId[m.id]!.feedback}
-                        </span>
-                      ) : null}
+                      Tugas kamu sudah berhasil disimpan di sistem.
                     </div>
                   )}
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-4 grid gap-4">
                     <div>
                       <div className="text-xs font-semibold text-slate-700">File tugas</div>
                       <input
                         type="file"
                         accept=".pdf,.zip,.rar,.docx,.pptx,.xlsx,.doc,.ppt,.xls"
+                        className="mt-1 block w-full md:w-1/2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                         onChange={(e) => {
-                          const next = e.target.files && e.target.files.length > 0 ? e.target.files[0] : null
-                          setFileByMateriId((prev) => ({ ...prev, [m.id]: next }))
+                          const file = e.target.files?.[0]
+                          if (file) setFileByMateriId((prev) => ({ ...prev, [m.id]: file }))
                         }}
-                        className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                       />
-                      <div className="mt-1 text-[11px] text-slate-500">Maks 20MB. Format: pdf/zip/rar/docx/pptx/xlsx.</div>
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold text-slate-700">Catatan (opsional)</div>
-                      <textarea
-                        value={catatanByMateriId[m.id] ?? ''}
-                        onChange={(e) => setCatatanByMateriId((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                        rows={3}
-                        placeholder="Tulis catatan singkat untuk guru..."
-                        className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400"
-                      />
+                      <div className="mt-1 text-[10px] text-slate-500">Maks 20MB. Format: pdf/zip/rar/docx/pptx/xlsx.</div>
                     </div>
                   </div>
 

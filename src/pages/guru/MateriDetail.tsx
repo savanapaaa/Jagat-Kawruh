@@ -229,8 +229,7 @@ export default function MateriDetail() {
 
     try {
       setSavingBySubmissionId((prev) => ({ ...prev, [submissionId]: true }))
-      const feedback = feedbackBySubmissionId[submissionId] ?? ''
-      const res = await materiAPI.nilaiSubmission(submissionId, { nilai, feedback })
+      const res = await materiAPI.nilaiSubmission(submissionId, { nilai, feedback: '' })
       if (!res.success) {
         alert(res.message || 'Gagal menyimpan nilai. Silakan coba lagi.')
         return
@@ -466,7 +465,7 @@ export default function MateriDetail() {
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">Kelas</th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">File</th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">Waktu</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">Nilai & Feedback</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">Nilai</th>
                     <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-600">Aksi</th>
                   </tr>
                 </thead>
@@ -498,13 +497,6 @@ export default function MateriDetail() {
                             onChange={(e) => setNilaiBySubmissionId((prev) => ({ ...prev, [s.id]: e.target.value }))}
                             placeholder="0-100"
                             className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400"
-                          />
-                          <textarea
-                            value={feedbackBySubmissionId[s.id] ?? ''}
-                            onChange={(e) => setFeedbackBySubmissionId((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                            rows={2}
-                            placeholder="Feedback (opsional)"
-                            className="w-72 max-w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400"
                           />
                         </div>
                       </td>
