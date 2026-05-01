@@ -556,7 +556,7 @@ export function GameBoard({
           touch-action: none;
           max-width: 100vw;
           /* Leave room for HUD + D-pad */
-          --jk-board-max: min(92vmin, calc(100dvh - 300px));
+          --jk-board-max: min(92vmin, calc(100dvh - 360px));
         }
 
         .game-board-container.fullscreen-desktop {
