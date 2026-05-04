@@ -1329,7 +1329,7 @@ export default function PBL() {
       bySiswa[key].total += 1
       const catatan = String((c as any)?.catatan ?? '').trim()
       const filePath = (c as any)?.file_path != null ? String((c as any).file_path).trim() : ''
-      if (catatan.length > 0 && filePath.length > 0) bySiswa[key].lengkap += 1
+      if (catatan.length > 0 || filePath.length > 0) bySiswa[key].lengkap += 1
     }
     return bySiswa
   }
