@@ -637,7 +637,7 @@ export default function PBL() {
             <Icon name="users" className="h-3.5 w-3.5" />
             Kontribusi Individu:
           </p>
-          <p className="text-[11px] text-slate-500">Menampilkan catatan + file bukti per siswa.</p>
+          <p className="text-[11px] text-slate-500">Menampilkan catatan / file bukti per siswa.</p>
         </div>
 
         <div className="mt-3 space-y-2">
@@ -647,7 +647,7 @@ export default function PBL() {
             const role = key ? jobdeskByKelompokId[kId]?.[key] : undefined
             const catatan = String(c.catatan ?? '').trim()
             const filePath = c.file_path ? String(c.file_path).trim() : ''
-            const ok = catatan.length > 0 && filePath.length > 0
+            const ok = catatan.length > 0 || filePath.length > 0
 
             return (
               <div key={c.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -708,7 +708,7 @@ export default function PBL() {
           })}
         </div>
 
-        <p className="mt-2 text-[11px] text-slate-500">Status Lengkap = ada catatan & file.</p>
+        <p className="mt-2 text-[11px] text-slate-500">Status Lengkap = ada catatan atau file.</p>
       </div>
     )
   }
