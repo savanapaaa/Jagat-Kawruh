@@ -668,7 +668,15 @@ export default function PBL() {
                         {ok ? 'Lengkap' : 'Belum lengkap'}
                       </span>
                       {c.submitted_at && (
-                        <span className="text-[11px] text-slate-500">{String(c.submitted_at)}</span>
+                        <span className="text-[11px] text-slate-500">
+                          {new Date(String(c.submitted_at)).toLocaleString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
                       )}
                     </div>
                   </div>
