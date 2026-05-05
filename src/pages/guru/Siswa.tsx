@@ -198,7 +198,24 @@ export default function Siswa() {
                 <label className="text-sm font-semibold text-slate-700">Kelas</label>
                 <select
                   value={formData.kelas}
-                  onChange={(e) => setFormData({ ...formData, kelas: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    let newJurusan = formData.jurusan
+                    const kelasName = String(value || '').toUpperCase()
+                    const matched = daftarJurusan.find(j => {
+                      const jName = String(j.nama_jurusan || j.nama || '').toUpperCase()
+                      if (kelasName.includes(jName)) return true
+                      if (jName === 'REKAYASA PERANGKAT LUNAK' && kelasName.includes('RPL')) return true
+                      if (jName === 'TEKNIK KOMPUTER DAN JARINGAN' && kelasName.includes('TKJ')) return true
+                      if (jName === 'RPL' && kelasName.includes('RPL')) return true
+                      if (jName === 'TKJ' && kelasName.includes('TKJ')) return true
+                      return false
+                    })
+                    if (matched) {
+                      newJurusan = matched.id
+                    }
+                    setFormData({ ...formData, kelas: value, jurusan: newJurusan })
+                  }}
                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-amber-400"
                   required
                 >
@@ -216,8 +233,9 @@ export default function Siswa() {
               <select
                 value={formData.jurusan}
                 onChange={(e) => setFormData({ ...formData, jurusan: e.target.value })}
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-amber-400"
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm outline-none cursor-not-allowed text-slate-500"
                 required
+                disabled={!!formData.kelas}
               >
                 {daftarJurusan.length === 0 ? (
                   <option value="">Belum ada jurusan (tambahkan dulu di menu Jurusan)</option>
@@ -229,6 +247,9 @@ export default function Siswa() {
                   ))
                 )}
               </select>
+              {!!formData.kelas && (
+                <p className="mt-1 text-xs text-slate-500">Otomatis dipilih berdasarkan kelas (terkunci).</p>
+              )}
             </div>
 
             <div>

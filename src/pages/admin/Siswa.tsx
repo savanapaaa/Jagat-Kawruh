@@ -380,7 +380,31 @@ export default function AdminSiswa() {
                 <label className="mb-2 block text-sm font-semibold text-slate-700">Kelas *</label>
                 <ResponsiveSelect
                   value={formData.kelas_id}
-                  onChange={(value) => setFormData({ ...formData, kelas_id: value })}
+                  onChange={(value) => {
+                    const selectedKelas = kelasList.find((k: any) => k.id === value) as any
+                    let newJurusanId = formData.jurusan_id
+
+                    if (selectedKelas) {
+                      if (selectedKelas.jurusan_id) {
+                        newJurusanId = selectedKelas.jurusan_id
+                      } else {
+                        const kelasName = String(selectedKelas.nama || '').toUpperCase()
+                        const matched = jurusanList.find(j => {
+                          const jName = String(j.nama_jurusan || j.nama || '').toUpperCase()
+                          if (kelasName.includes(jName)) return true
+                          if (jName === 'REKAYASA PERANGKAT LUNAK' && kelasName.includes('RPL')) return true
+                          if (jName === 'TEKNIK KOMPUTER DAN JARINGAN' && kelasName.includes('TKJ')) return true
+                          if (jName === 'RPL' && kelasName.includes('RPL')) return true
+                          if (jName === 'TKJ' && kelasName.includes('TKJ')) return true
+                          return false
+                        })
+                        if (matched) {
+                          newJurusanId = matched.id
+                        }
+                      }
+                    }
+                    setFormData({ ...formData, kelas_id: value, jurusan_id: newJurusanId })
+                  }}
                   placeholder="Pilih Kelas"
                   options={kelasList.map((k) => ({ value: k.id, label: String(k.nama || k.id) }))}
                 />
@@ -393,7 +417,11 @@ export default function AdminSiswa() {
                   onChange={(value) => setFormData({ ...formData, jurusan_id: value })}
                   placeholder="Pilih Jurusan"
                   options={jurusanList.map((j) => ({ value: j.id, label: j.nama_jurusan || j.nama }))}
+                  disabled={!!formData.kelas_id}
                 />
+                {!!formData.kelas_id && (
+                  <p className="mt-1 text-xs text-slate-500">Otomatis dipilih berdasarkan kelas (terkunci).</p>
+                )}
               </div>
             </div>
 
