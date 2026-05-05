@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { authAPI, nilaiAPI, pblAPI } from '../../lib/api'
+import { authAPI, nilaiAPI, pblAPI, kuisAPI, materiAPI } from '../../lib/api'
 import { getSession } from '../../lib/auth'
 
 type NilaiType = 'kuis' | 'pbl' | 'materi'
@@ -31,6 +31,8 @@ type NilaiRow = {
   nilai: number
   project_id?: string
   kelompok_id?: string
+  materi_id?: string
+  kuis_id?: string
   benar?: number
   total?: number
 }
@@ -146,6 +148,8 @@ function normalizeNilaiAll(data: any): NilaiRow[] {
 
     const project_id = a?.project_id != null ? String(a.project_id) : a?.pbl_id != null ? String(a.pbl_id) : undefined
     const kelompok_id = a?.kelompok_id != null ? String(a.kelompok_id) : undefined
+    const materi_id = a?.materi_id != null ? String(a.materi_id) : undefined
+    const kuis_id = a?.kuis_id != null ? String(a.kuis_id) : undefined
 
     rows.push({
       id,
@@ -154,6 +158,8 @@ function normalizeNilaiAll(data: any): NilaiRow[] {
       tanggal: a.tanggal ?? a.created_at ?? a.date,
       nilai: Number.isFinite(nilaiValue) ? nilaiValue : 0,
       ...(type === 'pbl' ? { project_id, kelompok_id } : {}),
+      ...(type === 'materi' ? { materi_id } : {}),
+      ...(type === 'kuis' ? { kuis_id } : {}),
       benar: benar != null ? Number(benar) : undefined,
       total: total != null ? Number(total) : undefined,
     })
@@ -304,8 +310,30 @@ export default function Nilai() {
       if (response.success) {
         const list = normalizeNilaiAll(response.data)
         if (list.length > 0) {
-          const withOverrides = await applyPblIndividualOverrides(list).catch(() => list)
-          setItems(withOverrides)
+          try {
+            const [kuisRes, pblRes, materiRes] = await Promise.all([
+              kuisAPI.getAll(),
+              pblAPI.getAll(),
+              materiAPI.getAll()
+            ])
+            const activeKuisIds = new Set((Array.isArray((kuisRes as any).data?.data) ? (kuisRes as any).data.data : Array.isArray((kuisRes as any).data) ? (kuisRes as any).data : []).map((x: any) => String(x.id)))
+            const activePblIds = new Set((Array.isArray((pblRes as any).data?.data) ? (pblRes as any).data.data : Array.isArray((pblRes as any).data) ? (pblRes as any).data : []).map((x: any) => String(x.id)))
+            const activeMateriIds = new Set((Array.isArray((materiRes as any).data?.data) ? (materiRes as any).data.data : Array.isArray((materiRes as any).data) ? (materiRes as any).data : []).map((x: any) => String(x.id)))
+
+            const filteredList = list.filter((r) => {
+              if (r.type === 'kuis' && r.kuis_id) return activeKuisIds.has(r.kuis_id)
+              if (r.type === 'pbl' && r.project_id) return activePblIds.has(r.project_id)
+              if (r.type === 'materi' && r.materi_id) return activeMateriIds.has(r.materi_id)
+              return true
+            })
+
+            const withOverrides = await applyPblIndividualOverrides(filteredList).catch(() => filteredList)
+            setItems(withOverrides)
+          } catch (e) {
+            console.error('Error filtering active tasks', e)
+            const withOverrides = await applyPblIndividualOverrides(list).catch(() => list)
+            setItems(withOverrides)
+          }
           return
         }
       }
