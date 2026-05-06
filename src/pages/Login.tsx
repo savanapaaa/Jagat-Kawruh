@@ -66,11 +66,11 @@ export default function Login() {
                 e.preventDefault()
                 setError('')
                 setLoading(true)
-                
+
                 try {
                   const response = await authAPI.login(email, password)
                   console.log('Login response:', response)
-                  
+
                   if (response.success && response.data) {
                     // Simpan session (use /auth/me to enrich user with kelas_id/relations)
                     let userToStore = response.data.user
@@ -100,11 +100,11 @@ export default function Login() {
                     }
 
                     localStorage.setItem('session', JSON.stringify(userToStore))
-                    
+
                     // Navigate berdasarkan role
                     const role = userToStore.role
                     console.log('User role:', role)
-                    
+
                     if (role === 'guru') {
                       console.log('Navigating to guru dashboard')
                       navigate('/guru/dashboard')
@@ -192,7 +192,7 @@ export default function Login() {
               </button>
 
               <div className="mt-2 text-xs text-slate-500">
-                Belum punya akun? <span className="font-semibold">(nanti bisa diarahkan ke daftar)</span>
+                Belum punya akun? <span className="font-semibold">(Hubungi Guru)</span>
               </div>
             </form>
           </div>

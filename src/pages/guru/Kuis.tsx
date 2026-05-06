@@ -50,7 +50,7 @@ export default function TeacherKuis() {
   const [showForm, setShowForm] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [title, setTitle] = useState('')
-  const [kelas, setKelas] = useState('')
+  const [selectedKelasIds, setSelectedKelasIds] = useState<string[]>([])
   const [kelasList, setKelasList] = useState<Kelas[]>([])
   const [status, setStatus] = useState<KuisStatus>('Aktif')
   const [numQuestions, setNumQuestions] = useState(5)
@@ -85,7 +85,7 @@ export default function TeacherKuis() {
           // Jika berisi object dengan property nama/id (format baru dari backend)
           if (typeof kelasData[0] === 'object' && kelasData[0].nama) {
             setKelasList(kelasData)
-            if (!kelas) setKelas(kelasData[0].id)
+            if (selectedKelasIds.length === 0 && kelasData.length > 0) setSelectedKelasIds([String(kelasData[0].id)])
             return
           }
           
@@ -99,7 +99,7 @@ export default function TeacherKuis() {
               )
               if (kelasDiampu.length > 0) {
                 setKelasList(kelasDiampu)
-                if (!kelas) setKelas(kelasDiampu[0].id)
+                if (selectedKelasIds.length === 0 && kelasDiampu.length > 0) setSelectedKelasIds([String(kelasDiampu[0].id)])
                 return
               }
             }
@@ -111,7 +111,7 @@ export default function TeacherKuis() {
               tingkat: String(id)
             }))
             setKelasList(kelasFromIds)
-            if (!kelas) setKelas(kelasData[0])
+            if (selectedKelasIds.length === 0 && kelasData.length > 0) setSelectedKelasIds([String(kelasData[0])])
             return
           }
         }
@@ -124,18 +124,18 @@ export default function TeacherKuis() {
         const allKelas = kelasResponse.data?.data || kelasResponse.data || []
         if (Array.isArray(allKelas) && allKelas.length > 0) {
           setKelasList(allKelas)
-          if (!kelas) setKelas(String(allKelas[0].id))
+          if (selectedKelasIds.length === 0) setSelectedKelasIds([String(allKelas[0].id)])
           return
         }
       }
 
       setKelasList([])
-      if (!kelas) setKelas('')
+      if (selectedKelasIds.length === 0) setSelectedKelasIds([])
     } catch (error) {
       console.error('Error loading kelas diampu:', error)
 
       setKelasList([])
-      if (!kelas) setKelas('')
+      if (selectedKelasIds.length === 0) setSelectedKelasIds([])
     }
   }
 
@@ -255,7 +255,7 @@ export default function TeacherKuis() {
   // Terima data dari halaman buat soal
   useEffect(() => {
     const state = location.state as {
-      newKuis?: { title: string; kelas?: string; status: KuisStatus; questions: Question[]; batasWaktu?: number }
+      newKuis?: { title: string; kelas?: string | string[]; status: KuisStatus; questions: Question[]; batasWaktu?: number }
     } | null
     if (state?.newKuis && !isSubmitting && !hasSubmitted.current) {
       setIsSubmitting(true)
@@ -268,11 +268,7 @@ export default function TeacherKuis() {
         judul: state.newKuis.title,
         // Backend now requires kelas_ids and will auto-fill legacy `kelas` from tingkat.
         kelas_ids: state.newKuis.kelas
-          ? [
-              /^\d+$/.test(String(state.newKuis.kelas))
-                ? Number(state.newKuis.kelas)
-                : String(state.newKuis.kelas),
-            ]
+          ? (Array.isArray(state.newKuis.kelas) ? state.newKuis.kelas : [state.newKuis.kelas]).map(k => /^\d+$/.test(String(k)) ? Number(k) : String(k))
           : [],
         batas_waktu: safeLimit,
         status: state.newKuis.status,
@@ -324,8 +320,8 @@ export default function TeacherKuis() {
   }, [location.state, isSubmitting, navigate, location.pathname])
 
   const canSubmit = useMemo(() => {
-    return title.trim().length > 0 && numQuestions > 0 && batasWaktu > 0 && !!kelas
-  }, [title, numQuestions, batasWaktu, kelas])
+    return title.trim().length > 0 && numQuestions > 0 && batasWaktu > 0 && selectedKelasIds.length > 0
+  }, [title, numQuestions, batasWaktu, selectedKelasIds])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -335,7 +331,7 @@ export default function TeacherKuis() {
     navigate('/guru/kuis/buat-soal', {
       state: {
         title: title.trim(),
-        kelas,
+        kelas: selectedKelasIds,
         status,
         numQuestions,
         batasWaktu,
@@ -401,22 +397,37 @@ export default function TeacherKuis() {
             </div>
 
             <div>
-              <label className="text-sm font-semibold text-slate-700">Kelas</label>
-              <div className="mt-2">
-                <ResponsiveSelect
-                  value={kelas}
-                  onChange={setKelas}
-                  placeholder={kelasList.length === 0 ? 'Tidak ada kelas yang diampu' : 'Pilih Kelas'}
-                  includeEmptyOption={false}
-                  disabled={kelasList.length === 0}
-                  options={kelasList.map((k) => ({ value: String(k.id), label: k.nama }))}
-                />
+              <label className="text-sm font-semibold text-slate-700">Terapkan ke Kelas</label>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {kelasList.length === 0 ? (
+                  <p className="text-xs text-red-500">Anda belum diamanahi kelas. Hubungi admin.</p>
+                ) : (
+                  kelasList.map((k) => {
+                    const kid = String(k.id)
+                    const isSelected = selectedKelasIds.includes(kid)
+                    return (
+                      <label key={kid} className={`flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-sm transition-colors ${isSelected ? 'border-amber-500 bg-amber-50 text-amber-900' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedKelasIds(prev => [...prev, kid])
+                            } else {
+                              setSelectedKelasIds(prev => prev.filter(id => id !== kid))
+                            }
+                          }}
+                        />
+                        <div className={`flex h-4 w-4 items-center justify-center rounded ${isSelected ? 'bg-amber-500' : 'border border-slate-300'}`}>
+                          {isSelected && <span className="text-white">✓</span>}
+                        </div>
+                        <span className="font-semibold">{k.nama}</span>
+                      </label>
+                    )
+                  })
+                )}
               </div>
-              {kelasList.length === 0 && (
-                <p className="mt-1 text-xs text-red-500">
-                  Anda belum diamanahi kelas. Hubungi admin untuk menambahkan kelas.
-                </p>
-              )}
             </div>
           </div>
 
@@ -468,7 +479,7 @@ export default function TeacherKuis() {
                 onClick={() => {
                   setShowForm(false)
                   setTitle('')
-                  setKelas(kelasList.length > 0 ? String(kelasList[0].id) : '')
+                  setSelectedKelasIds(kelasList.length > 0 ? [String(kelasList[0].id)] : [])
                   setStatus('Aktif')
                   setNumQuestions(5)
                   setBatasWaktu(30)

@@ -33,7 +33,7 @@ export default function TeacherMateri() {
   const [showForm, setShowForm] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [title, setTitle] = useState('')
-  const [kelas, setKelas] = useState('')
+  const [selectedKelasIds, setSelectedKelasIds] = useState<string[]>([])
   const [kelasList, setKelasList] = useState<Kelas[]>([])
   const [status, setStatus] = useState<MateriStatus>('Draft')
   const [pesanPembelajaran, setPesanPembelajaran] = useState('')
@@ -73,7 +73,7 @@ export default function TeacherMateri() {
           if (typeof kelasData[0] === 'object' && kelasData[0].nama) {
             console.log('Using kelas from backend with full details')
             setKelasList(kelasData)
-            if (!kelas) setKelas(kelasData[0].id)
+            if (selectedKelasIds.length === 0 && kelasData.length > 0) setSelectedKelasIds([String(kelasData[0].id)])
             return
           }
           
@@ -89,7 +89,7 @@ export default function TeacherMateri() {
                 if (kelasDiampu.length > 0) {
                   console.log('Filtered kelas from full list:', kelasDiampu)
                   setKelasList(kelasDiampu)
-                  if (!kelas) setKelas(kelasDiampu[0].id)
+                  if (selectedKelasIds.length === 0 && kelasDiampu.length > 0) setSelectedKelasIds([String(kelasDiampu[0].id)])
                   return
                 }
               }
@@ -102,7 +102,7 @@ export default function TeacherMateri() {
                 tingkat: String(id)
               }))
               setKelasList(kelasFromIds)
-              if (!kelas) setKelas(String(kelasData[0]))
+              if (selectedKelasIds.length === 0 && kelasData.length > 0) setSelectedKelasIds([String(kelasData[0])])
               return
             }
           }
@@ -117,7 +117,7 @@ export default function TeacherMateri() {
         { id: 'XII', nama: 'Kelas XII', tingkat: 'XII' }
       ]
       setKelasList(manualKelas as any)
-      if (!kelas) setKelas('X')
+      if (selectedKelasIds.length === 0) setSelectedKelasIds(['X'])
       
     } catch (error: any) {
       console.error('Error loading kelas diampu:', error)
@@ -128,7 +128,7 @@ export default function TeacherMateri() {
         { id: 'XII', nama: 'Kelas XII', tingkat: 'XII' }
       ]
       setKelasList(manualKelas as any)
-      if (!kelas) setKelas('X')
+      if (selectedKelasIds.length === 0) setSelectedKelasIds(['X'])
     }
   }
 
@@ -195,7 +195,7 @@ export default function TeacherMateri() {
     try {
       const response = await materiAPI.create({
         judul: title.trim(),
-        kelas_ids: [kelas],
+        kelas_ids: selectedKelasIds,
         status: status,
         file: pdfFile ?? undefined,
         pesan_pembelajaran: pesanPembelajaran.trim(),
@@ -300,16 +300,36 @@ export default function TeacherMateri() {
             </div>
 
             <div>
-              <label className="text-sm font-semibold text-slate-700">Kelas</label>
-              <div className="mt-2">
-                <ResponsiveSelect
-                  value={kelas}
-                  onChange={setKelas}
-                  placeholder={kelasList.length === 0 ? 'Tidak ada kelas yang diampu' : 'Pilih Kelas'}
-                  includeEmptyOption={false}
-                  disabled={kelasList.length === 0}
-                  options={kelasList.map((k) => ({ value: String(k.id), label: k.nama }))}
-                />
+              <label className="text-sm font-semibold text-slate-700">Terapkan ke Kelas</label>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {kelasList.length === 0 ? (
+                  <p className="text-xs text-red-500">Anda belum diamanahi kelas. Hubungi admin.</p>
+                ) : (
+                  kelasList.map((k) => {
+                    const kid = String(k.id)
+                    const isSelected = selectedKelasIds.includes(kid)
+                    return (
+                      <label key={kid} className={`flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-sm transition-colors ${isSelected ? 'border-amber-500 bg-amber-50 text-amber-900' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedKelasIds(prev => [...prev, kid])
+                            } else {
+                              setSelectedKelasIds(prev => prev.filter(id => id !== kid))
+                            }
+                          }}
+                        />
+                        <div className={`flex h-4 w-4 items-center justify-center rounded ${isSelected ? 'bg-amber-500' : 'border border-slate-300'}`}>
+                          {isSelected && <span className="text-white">✓</span>}
+                        </div>
+                        <span className="font-semibold">{k.nama}</span>
+                      </label>
+                    )
+                  })
+                )}
               </div>
               {kelasList.length === 0 && (
                 <p className="mt-1 text-xs text-red-500">
