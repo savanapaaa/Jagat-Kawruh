@@ -94,6 +94,81 @@ function buildStorageUrl(pathLike: unknown): string | null {
   return `${origin}/storage/${raw}`
 }
 
+function pickFirstString(obj: any, keys: string[]): string {
+  if (!obj || typeof obj !== 'object') return ''
+  for (const key of keys) {
+    const value = obj[key]
+    if (typeof value === 'string') {
+      const s = value.trim()
+      if (s) return s
+      continue
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value)
+    }
+  }
+  return ''
+}
+
+function extractSubmissionFilePath(raw: any): string {
+  if (!raw || typeof raw !== 'object') return ''
+
+  // Common direct keys
+  const direct = pickFirstString(raw, ['file_path', 'filePath', 'filepath', 'path', 'file_url', 'fileUrl', 'url'])
+  if (direct) return direct
+
+  // Nested file object: { file: { path/url }, file: { file_path } }
+  const fileObj = raw.file && typeof raw.file === 'object' ? raw.file : null
+  if (fileObj) {
+    const nested = pickFirstString(fileObj, ['file_path', 'filePath', 'filepath', 'path', 'file_url', 'fileUrl', 'url'])
+    if (nested) return nested
+  }
+
+  // Some APIs put the path string under `file`
+  if (typeof raw.file === 'string') {
+    const s = raw.file.trim()
+    if (s) return s
+  }
+
+  return ''
+}
+
+function normalizeSubmission(raw: any): Submission | null {
+  if (!raw || typeof raw !== 'object') return null
+
+  const id = pickFirstString(raw, ['id', 'submission_id', 'submissionId'])
+  const project_id = pickFirstString(raw, ['project_id', 'pbl_id', 'projectId'])
+  const kelompok_id = pickFirstString(raw, ['kelompok_id', 'group_id', 'kelompokId', 'groupId'])
+  const submitted_at = pickFirstString(raw, ['submitted_at', 'submittedAt', 'created_at', 'createdAt'])
+
+  if (!id || !kelompok_id) return null
+
+  const file_path = extractSubmissionFilePath(raw)
+  const file_name =
+    pickFirstString(raw, ['file_name', 'filename', 'fileName', 'name']) ||
+    (file_path ? String(file_path).split('/').pop() || '' : '') ||
+    'File'
+
+  const sizeStr = pickFirstString(raw, ['file_size', 'fileSize', 'size', 'bytes'])
+  const file_size = sizeStr && !Number.isNaN(Number(sizeStr)) ? Number(sizeStr) : 0
+
+  const submission: Submission = {
+    id,
+    project_id: project_id || String(raw.project_id ?? ''),
+    kelompok_id,
+    kelompok: raw.kelompok,
+    file_name,
+    file_path: file_path || '',
+    file_size,
+    catatan: typeof raw.catatan === 'string' ? raw.catatan : raw.catatan != null ? String(raw.catatan) : undefined,
+    nilai: raw.nilai != null && String(raw.nilai).trim() !== '' && !Number.isNaN(Number(raw.nilai)) ? Number(raw.nilai) : undefined,
+    feedback: typeof raw.feedback === 'string' ? raw.feedback : raw.feedback != null ? String(raw.feedback) : undefined,
+    submitted_at: submitted_at || String(raw.submitted_at ?? ''),
+  }
+
+  return submission
+}
+
 type KontribusiIndividu = {
   id: string
   kelompok_id: string
@@ -1212,7 +1287,7 @@ export default function PBL() {
       try {
         const response = await pblAPI.getSubmissions(project.id)
         const rows = response.success ? extractArrayFromPayload(response.data) : []
-        subs = rows as Submission[]
+        subs = (rows || []).map((r: any) => normalizeSubmission(r)).filter(Boolean) as Submission[]
       } catch (e) {
         console.warn('Gagal memuat submissions, lanjut fallback progress:', e)
         subs = []
