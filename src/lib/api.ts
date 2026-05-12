@@ -1110,6 +1110,62 @@ export const pblAPI = {
     })
   },
 
+  async fetchSubmissionBlob(submissionId: string): Promise<{ blob: Blob; filename: string }> {
+    const token = getToken()
+    const url = `${API_BASE_URL}/pbl/submissions/${submissionId}/download`
+
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/octet-stream,*/*',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+
+    if (!res.ok) {
+      let message = `Gagal mengunduh file (HTTP ${res.status})`
+      try {
+        const data = await res.json()
+        if (data?.message) message = data.message
+      } catch {
+        // ignore
+      }
+      const err: any = new Error(message)
+      err.status = res.status
+      throw err
+    }
+
+    const blob = await res.blob()
+
+    const cd = res.headers.get('content-disposition') || ''
+    const match = cd.match(/filename\*?=(?:UTF-8''|"?)([^";]+)"?/i)
+    let filename = `pbl-submission-${submissionId}`
+    if (match?.[1]) {
+      try {
+        filename = decodeURIComponent(match[1])
+      } catch {
+        filename = match[1]
+      }
+    }
+
+    return { blob, filename }
+  },
+
+  async downloadSubmission(submissionId: string) {
+    const { blob, filename } = await this.fetchSubmissionBlob(submissionId)
+    const objectUrl = URL.createObjectURL(blob)
+    try {
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+    }
+  },
+
   /**
    * Guru: override nilai PBL per anggota (individu) dalam 1 kelompok.
    * Backend legacy belum tentu punya endpoint ini; panggilan dari FE sebaiknya best-effort.

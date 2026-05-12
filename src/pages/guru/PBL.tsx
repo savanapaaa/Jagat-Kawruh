@@ -3008,19 +3008,39 @@ export default function PBL() {
                             buildStorageUrl((sintaks5 as any)?.url) ||
                             buildStorageUrl((sintaks5 as any)?.file)
 
-                          if (!url) {
+                          if (url) {
+                            return (
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
+                              >
+                                Unduh
+                              </a>
+                            )
+                          }
+
+                          // Fallback: some backends expose download endpoint by submission id.
+                          const submissionId = String((submission as any)?.id ?? '').trim()
+                          if (!submissionId) {
                             return <span className="text-xs text-slate-400">File tidak tersedia</span>
                           }
 
                           return (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await pblAPI.downloadSubmission(submissionId)
+                                } catch (e: any) {
+                                  alert(e?.message || 'Gagal mengunduh file')
+                                }
+                              }}
                               className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
                             >
                               Unduh
-                            </a>
+                            </button>
                           )
                         })()}
                       </div>
