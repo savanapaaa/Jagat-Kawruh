@@ -2916,7 +2916,23 @@ export default function PBL() {
                           </p>
                         </div>
                         {(() => {
-                          const url = buildStorageUrl(submission.file_path)
+                          // Some backends return file path on submission, others only on sintaks 5 progress.
+                          const kelompokProgress = submissionProgress?.[submission.kelompok_id as any]
+                          const progressItems = Array.isArray((kelompokProgress as any)?.progress) ? (kelompokProgress as any).progress : []
+                          const sintaks5 =
+                            progressItems.find((p: any) => Number(p?.urutan) === 5) ??
+                            progressItems.find((p: any) => String(p?.sintaks_id) === '5')
+
+                          const url =
+                            buildStorageUrl((submission as any)?.file_path) ||
+                            buildStorageUrl((submission as any)?.file_url) ||
+                            buildStorageUrl((submission as any)?.url) ||
+                            buildStorageUrl((submission as any)?.file) ||
+                            buildStorageUrl((sintaks5 as any)?.file_path) ||
+                            buildStorageUrl((sintaks5 as any)?.file_url) ||
+                            buildStorageUrl((sintaks5 as any)?.url) ||
+                            buildStorageUrl((sintaks5 as any)?.file)
+
                           if (!url) {
                             return <span className="text-xs text-slate-400">File tidak tersedia</span>
                           }
