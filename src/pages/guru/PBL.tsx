@@ -68,6 +68,32 @@ type JobdeskItem = {
   role: JobdeskRole
 }
 
+function buildStorageUrl(pathLike: unknown): string | null {
+  const raw = String(pathLike ?? '').trim()
+  const lowered = raw.toLowerCase()
+  if (!raw || lowered === 'undefined' || lowered === 'null') return null
+
+  // If backend already returns absolute URL, just use it.
+  if (/^https?:\/\//i.test(raw)) return raw
+
+  const apiBase = String(import.meta.env.VITE_API_URL ?? '').trim()
+  let origin = ''
+  try {
+    // Works for absolute and relative API URLs.
+    origin = new URL(apiBase || '/api', window.location.origin).origin
+  } catch {
+    origin = window.location.origin
+  }
+
+  // If backend returns an absolute path like /storage/..., join with origin.
+  if (raw.startsWith('/')) return `${origin}${raw}`
+
+  // If backend returns storage/... (already includes storage prefix)
+  if (/^storage\//i.test(raw)) return `${origin}/${raw}`
+
+  return `${origin}/storage/${raw}`
+}
+
 type KontribusiIndividu = {
   id: string
   kelompok_id: string
@@ -646,8 +672,9 @@ export default function PBL() {
             const name = key ? getSiswaNameByIdKey(key) : String(c.siswa_id ?? '')
             const role = key ? jobdeskByKelompokId[kId]?.[key] : undefined
             const catatan = String(c.catatan ?? '').trim()
-            const filePath = c.file_path ? String(c.file_path).trim() : ''
-            const ok = catatan.length > 0 || filePath.length > 0
+            const rawFilePath = c.file_path != null ? String(c.file_path).trim() : ''
+            const fileUrl = buildStorageUrl(rawFilePath)
+            const ok = catatan.length > 0 || Boolean(fileUrl)
 
             return (
               <div key={c.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -694,11 +721,11 @@ export default function PBL() {
 
                   <div className="rounded-md border border-slate-200 bg-white p-2">
                     <p className="text-[11px] font-semibold text-slate-600">File Bukti</p>
-                    {filePath ? (
+                    {fileUrl ? (
                       <div className="mt-1 flex items-center justify-between gap-2">
-                        <span className="text-xs text-slate-700 truncate">{filePath.split('/').pop()}</span>
+                        <span className="text-xs text-slate-700 truncate">{rawFilePath.split('/').pop()}</span>
                         <a
-                          href={`http://localhost:8000/storage/${filePath}`}
+                          href={fileUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
@@ -2416,25 +2443,31 @@ export default function PBL() {
                                             </div>
                                           )}
 
-                                          {sintaksProgress.file_path && (
-                                            <div className="bg-blue-50 rounded p-3 border border-blue-200">
-                                              <p className="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-blue-700">
-                                                <Icon name="paperclip" className="h-3.5 w-3.5" />
-                                                File Lampiran:
-                                              </p>
-                                              <div className="flex items-center justify-between">
-                                                <span className="text-sm text-slate-700">{String(sintaksProgress.file_path).split('/').pop()}</span>
-                                                <a
-                                                  href={`http://localhost:8000/storage/${sintaksProgress.file_path}`}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-                                                >
-                                                  Unduh
-                                                </a>
+                                          {(() => {
+                                            const url = buildStorageUrl(sintaksProgress.file_path)
+                                            if (!url) return null
+                                            const name = String(sintaksProgress.file_path ?? '').split('/').pop()
+
+                                            return (
+                                              <div className="bg-blue-50 rounded p-3 border border-blue-200">
+                                                <p className="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-blue-700">
+                                                  <Icon name="paperclip" className="h-3.5 w-3.5" />
+                                                  File Lampiran:
+                                                </p>
+                                                <div className="flex items-center justify-between">
+                                                  <span className="text-sm text-slate-700">{name}</span>
+                                                  <a
+                                                    href={url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                                                  >
+                                                    Unduh
+                                                  </a>
+                                                </div>
                                               </div>
-                                            </div>
-                                          )}
+                                            )
+                                          })()}
 
                                           {sintaksProgress.submitted_at && (
                                             <p className="text-xs text-slate-500">
@@ -2798,25 +2831,31 @@ export default function PBL() {
                                             </div>
                                           )}
                                           
-                                          {sintaksProgress.file_path && (
-                                            <div className="bg-blue-50 rounded p-3 border border-blue-200">
-                                              <p className="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-blue-700">
-                                                <Icon name="paperclip" className="h-3.5 w-3.5" />
-                                                File Lampiran:
-                                              </p>
-                                              <div className="flex items-center justify-between">
-                                                <span className="text-sm text-slate-700">{sintaksProgress.file_path.split('/').pop()}</span>
-                                                <a
-                                                  href={`http://localhost:8000/storage/${sintaksProgress.file_path}`}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-                                                >
-                                                  Unduh
-                                                </a>
+                                          {(() => {
+                                            const url = buildStorageUrl(sintaksProgress.file_path)
+                                            if (!url) return null
+                                            const name = String(sintaksProgress.file_path ?? '').split('/').pop()
+
+                                            return (
+                                              <div className="bg-blue-50 rounded p-3 border border-blue-200">
+                                                <p className="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-blue-700">
+                                                  <Icon name="paperclip" className="h-3.5 w-3.5" />
+                                                  File Lampiran:
+                                                </p>
+                                                <div className="flex items-center justify-between">
+                                                  <span className="text-sm text-slate-700">{name}</span>
+                                                  <a
+                                                    href={url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                                                  >
+                                                    Unduh
+                                                  </a>
+                                                </div>
                                               </div>
-                                            </div>
-                                          )}
+                                            )
+                                          })()}
                                           
                                           {sintaksProgress.submitted_at && (
                                             <p className="text-xs text-slate-500">
@@ -2876,14 +2915,23 @@ export default function PBL() {
                             Ukuran: {(submission.file_size / 1024 / 1024).toFixed(2)} MB
                           </p>
                         </div>
-                        <a
-                          href={`http://localhost:8000/storage/${submission.file_path}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
-                        >
-                          Unduh
-                        </a>
+                        {(() => {
+                          const url = buildStorageUrl(submission.file_path)
+                          if (!url) {
+                            return <span className="text-xs text-slate-400">File tidak tersedia</span>
+                          }
+
+                          return (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600"
+                            >
+                              Unduh
+                            </a>
+                          )
+                        })()}
                       </div>
                     </div>
 
@@ -3152,25 +3200,31 @@ export default function PBL() {
                                                   </div>
                                                 )}
 
-                                                {sintaksProgress.file_path && (
-                                                  <div className="bg-blue-50 rounded p-3 border border-blue-200">
-                                                    <p className="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-blue-700">
-                                                      <Icon name="paperclip" className="h-3.5 w-3.5" />
-                                                      File Lampiran:
-                                                    </p>
-                                                    <div className="flex items-center justify-between">
-                                                      <span className="text-sm text-slate-700">{String(sintaksProgress.file_path).split('/').pop()}</span>
-                                                      <a
-                                                        href={`http://localhost:8000/storage/${sintaksProgress.file_path}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-                                                      >
-                                                        Unduh
-                                                      </a>
+                                                {(() => {
+                                                  const url = buildStorageUrl(sintaksProgress.file_path)
+                                                  if (!url) return null
+                                                  const name = String(sintaksProgress.file_path ?? '').split('/').pop()
+
+                                                  return (
+                                                    <div className="bg-blue-50 rounded p-3 border border-blue-200">
+                                                      <p className="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-blue-700">
+                                                        <Icon name="paperclip" className="h-3.5 w-3.5" />
+                                                        File Lampiran:
+                                                      </p>
+                                                      <div className="flex items-center justify-between">
+                                                        <span className="text-sm text-slate-700">{name}</span>
+                                                        <a
+                                                          href={url}
+                                                          target="_blank"
+                                                          rel="noopener noreferrer"
+                                                          className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                                                        >
+                                                          Unduh
+                                                        </a>
+                                                      </div>
                                                     </div>
-                                                  </div>
-                                                )}
+                                                  )
+                                                })()}
 
                                                 {sintaksProgress.submitted_at && (
                                                   <p className="text-xs text-slate-500">
