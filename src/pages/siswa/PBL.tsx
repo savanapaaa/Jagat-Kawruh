@@ -1018,7 +1018,7 @@ export default function PBL() {
       setSavingProgress(sintaksId)
       const file = progressFile[sintaksId] || null
       if (isFileRequiredSintaks && !file) {
-        alert('Untuk Sintaks 4, pilih file hasil (mis. ZIP/RAR) terlebih dahulu. File ini akan dikumpulkan pada Sintaks 5.')
+        alert('Untuk Sintaks 4, pilih file hasil terlebih dahulu (PDF/Word/Gambar/ZIP/RAR). File ini akan dikumpulkan pada Sintaks 5.')
         return
       }
 
@@ -1040,7 +1040,7 @@ export default function PBL() {
             alert('Gagal mengumpulkan hasil: kelompok belum terdeteksi. Pastikan Anda sudah terdaftar dalam kelompok.')
           } else {
             if (!finalSubmissionFile) {
-              alert('File hasil belum dipilih. Silakan pilih file pada Sintaks 4 terlebih dahulu, lalu kembali ke Sintaks 5 untuk mengumpulkan.')
+              alert('File hasil belum dipilih. Silakan pilih file pada Sintaks 4 (PDF/Word/Gambar/ZIP/RAR) terlebih dahulu, lalu kembali ke Sintaks 5 untuk mengumpulkan.')
             } else {
             try {
               const submitRes = await pblAPI.submitProject(selectedProject.id, {
@@ -1461,6 +1461,7 @@ export default function PBL() {
                         </div>
                         <input
                           type="file"
+                          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.zip,.rar"
                           onChange={(e) => setProgressFile((prev) => ({ ...prev, [currentSintaks.id]: e.target.files?.[0] ?? null }))}
                           disabled={!canEditProgress}
                           className="w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-amber-700 hover:file:bg-amber-200 file:cursor-pointer file:transition"
@@ -1541,6 +1542,7 @@ export default function PBL() {
                               </div>
                               <input
                                 type="file"
+                                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.zip,.rar"
                                 onChange={(e) => setMyKontribusiFile((prev) => ({ ...prev, [currentSintaks.id]: e.target.files?.[0] ?? null }))}
                                 className="w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-emerald-700 hover:file:bg-emerald-200 file:cursor-pointer file:transition"
                               />
