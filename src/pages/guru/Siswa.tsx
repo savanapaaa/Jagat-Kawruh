@@ -137,9 +137,9 @@ export default function Siswa() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Kelola Siswa</h1>
+        <h1 className="text-2xl font-bold text-slate-800">Manajemen Siswa</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Buat dan kelola akun siswa untuk masuk ke sistem
+          Buat dan atur akun siswa untuk masuk ke sistem
         </p>
       </div>
 

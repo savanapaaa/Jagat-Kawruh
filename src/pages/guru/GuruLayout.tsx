@@ -10,6 +10,7 @@ const navItems = [
   { to: '/guru/pbl', label: 'PBL' },
   { to: '/guru/nilai', label: 'Nilai' },
   { to: '/guru/profil', label: 'Profil' },
+  { to: '/guru/panduan', label: 'Panduan' },
 ]
 
 function NavItem({ to, label, onClick }: { to: string; label: string; onClick?: () => void }) {

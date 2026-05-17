@@ -21,6 +21,7 @@ import GuruKuisDetail from './pages/guru/KuisDetail'
 import GuruNilai from './pages/guru/Nilai'
 import GuruPBL from './pages/guru/PBL'
 import GuruProfil from './pages/guru/Profil'
+import GuruPanduan from './pages/guru/Panduan'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminGuru from './pages/admin/Guru'
@@ -28,7 +29,9 @@ import AdminSiswa from './pages/admin/Siswa'
 import AdminKelas from './pages/admin/Kelas'
 import AdminJurusan from './pages/admin/Jurusan'
 import AdminProfil from './pages/admin/Profil'
+import AdminPanduan from './pages/admin/Panduan'
 import SiswaProfil from './pages/siswa/Profil'
+import SiswaPanduan from './pages/siswa/Panduan'
 
 function RequireSiswa({ children }: { children: React.ReactNode }) {
   const session = getSession()
@@ -75,6 +78,7 @@ function App() {
           <Route path="nilai" element={<Nilai />} />
           <Route path="notifikasi" element={<SiswaNotifikasi />} />
           <Route path="profil" element={<SiswaProfil />} />
+          <Route path="panduan" element={<SiswaPanduan />} />
         </Route>
 
         <Route
@@ -95,6 +99,7 @@ function App() {
           <Route path="pbl" element={<GuruPBL />} />
           <Route path="nilai" element={<GuruNilai />} />
           <Route path="profil" element={<GuruProfil />} />
+          <Route path="panduan" element={<GuruPanduan />} />
         </Route>
 
         <Route
@@ -112,6 +117,7 @@ function App() {
           <Route path="kelas" element={<AdminKelas />} />
           <Route path="jurusan" element={<AdminJurusan />} />
           <Route path="profil" element={<AdminProfil />} />
+          <Route path="panduan" element={<AdminPanduan />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

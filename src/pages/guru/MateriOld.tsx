@@ -63,7 +63,7 @@ export default function TeacherMateri() {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs font-semibold tracking-wide text-slate-500">MATERI</div>
-          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-800">Kelola materi</h1>
+          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-800">Manajemen materi</h1>
           <p className="mt-2 text-sm text-slate-600">Guru bisa menambahkan materi (PDF). Metadata disimpan di localStorage.</p>
         </div>
         {!showForm && (

@@ -99,7 +99,7 @@ export default function GuruProfil() {
           Profil Guru
         </div>
         <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">Pengaturan Akun</h1>
-        <p className="mt-2 text-sm text-slate-600">Kelola informasi profil dan keamanan akun Anda</p>
+        <p className="mt-2 text-sm text-slate-600">Manajemen informasi profil dan keamanan akun Anda</p>
       </div>
 
       {/* Informasi Profil */}

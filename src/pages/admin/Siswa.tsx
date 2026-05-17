@@ -266,7 +266,7 @@ export default function AdminSiswa() {
           <div className="inline-flex rounded-full bg-indigo-100 px-4 py-2 text-xs font-semibold text-indigo-800">
             SISWA
           </div>
-          <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">Kelola Siswa</h1>
+          <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">Manajemen Siswa</h1>
           <p className="mt-2 text-sm text-slate-600">Admin bisa menambahkan dan mengelola data siswa.</p>
         </div>
         {!showForm && (

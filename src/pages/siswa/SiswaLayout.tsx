@@ -11,6 +11,7 @@ const navItems = [
   { to: '/siswa/pbl', label: 'PBL' },
   { to: '/siswa/nilai', label: 'Nilai' },
   { to: '/siswa/profil', label: 'Profil' },
+  { to: '/siswa/panduan', label: 'Panduan' },
 ]
 
 function NavItem({ to, label, onClick }: { 

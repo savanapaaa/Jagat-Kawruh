@@ -158,7 +158,7 @@ export default function AdminJurusan() {
             JURUSAN
           </div>
           <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">
-            Kelola Jurusan
+            Manajemen Jurusan
           </h1>
           <p className="mt-2 text-sm text-slate-600">
             Admin bisa menambahkan dan mengelola data jurusan.

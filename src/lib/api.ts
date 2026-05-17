@@ -1498,6 +1498,37 @@ export const profileAPI = {
   },
 }
 
+// ===== PANDUAN (PDF) =====
+
+export type PanduanRole = 'admin' | 'guru' | 'siswa'
+
+export type PanduanMetadata = {
+  role: PanduanRole
+  title?: string | null
+  updated_at?: string
+  pdf_url?: string | null
+}
+
+export const panduanAPI = {
+  async get(role: PanduanRole) {
+    return apiCall<PanduanMetadata | null>(`/panduan/${role}`)
+  },
+
+  async upload(role: PanduanRole, file: File, title?: string) {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (typeof title === 'string') {
+      const trimmed = title.trim()
+      if (trimmed) formData.append('title', trimmed)
+    }
+
+    return apiCall<PanduanMetadata>(`/panduan/${role}`, {
+      method: 'POST',
+      body: formData,
+    })
+  },
+}
+
 export default {
   auth: authAPI,
   jurusan: jurusanAPI,
@@ -1508,4 +1539,5 @@ export default {
   nilai: nilaiAPI,
   notifikasi: notifikasiAPI,
   profile: profileAPI,
+  panduan: panduanAPI,
 }

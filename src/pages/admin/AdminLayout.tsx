@@ -10,6 +10,7 @@ const navItems = [
   { to: '/admin/kelas', label: 'Kelas' },
   { to: '/admin/jurusan', label: 'Jurusan' },
   { to: '/admin/profil', label: 'Profil' },
+  { to: '/admin/panduan', label: 'Panduan' },
 ]
 
 function NavItem({ to, label, onClick }: { to: string; label: string; onClick?: () => void }) {

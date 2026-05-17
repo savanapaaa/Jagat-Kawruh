@@ -228,7 +228,7 @@ export default function AdminKelas() {
             KELAS
           </div>
           <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">
-            Kelola Kelas
+            Manajemen Kelas
           </h1>
           <p className="mt-2 text-sm text-slate-600">
             Admin bisa menambahkan dan mengelola data kelas (contoh: X RPL 1, XI TKJ 2).

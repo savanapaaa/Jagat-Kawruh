@@ -1775,7 +1775,7 @@ export default function PBL() {
 
           <div className="mb-8 rounded-2xl bg-white p-6 shadow-lg">
             <h1 className="text-3xl font-black text-slate-800">{selectedProject.judul}</h1>
-            <p className="mt-2 text-sm text-slate-600">Kelola kelompok siswa untuk project ini</p>
+            <p className="mt-2 text-sm text-slate-600">Manajemen kelompok siswa untuk project ini</p>
           </div>
 
           <div className="mb-6 flex justify-end">
