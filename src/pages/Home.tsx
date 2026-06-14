@@ -18,7 +18,7 @@ const FEATURES: Feature[] = [
     description: 'Kerjakan project PBL dalam 5 fase bersama kelompok. Fase berikutnya terbuka setelah fase sebelumnya selesai dan disetujui.',
   },
   {
-    title: 'Nilai Kuis & PBL',
+    title: 'Nilai Kuis, Materi & PBL',
     description: 'Pantau nilai kuis dan hasil PBL, lengkap dengan progres pembelajaran agar Anda tahu apa yang perlu ditingkatkan.',
   },
   {
@@ -50,8 +50,8 @@ const HOW_IT_WORKS: Step[] = [
   },
   {
     number: '05',
-    title: 'Lihat Nilai & Progres',
-    description: 'Pantau nilai kuis dan status PBL, serta progres belajar Anda untuk mengetahui perkembangan secara berkala.',
+    title: 'Lihat Nilai',
+    description: 'Pantau nilai kuis, materi dan PBL untuk mengetahui perkembanganmu secara berkala.',
   },
 ]
 
