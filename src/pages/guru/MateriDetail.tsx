@@ -32,6 +32,19 @@ type MateriSubmissionRow = {
   feedback?: string | null
 }
 
+function formatDateTime(value?: string): string {
+  if (!value) return '-'
+  const ms = Date.parse(String(value))
+  if (!Number.isFinite(ms)) return String(value)
+  return new Date(ms).toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export default function MateriDetail() {
   const navigate = useNavigate()
   const { materiId } = useParams()
@@ -479,7 +492,7 @@ export default function MateriDetail() {
                           Unduh
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-slate-700">{s.submitted_at || s.created_at || '-'}</td>
+                      <td className="px-4 py-3 text-slate-700">{formatDateTime(s.submitted_at || s.created_at)}</td>
                       <td className="px-4 py-3">
                         <div className="grid gap-2">
                           <input
